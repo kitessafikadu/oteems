@@ -5,9 +5,17 @@ import { AuthModule } from './auth/auth.module';
 import { EmployeesModule } from './employees/employees.module';
 import { RequestsModule } from './requests/requests.module';
 import { ReportsModule } from './reports/reports.module';
-
+import { ConfigModule } from '@nestjs/config';
 @Module({
-  imports: [AuthModule, EmployeesModule, RequestsModule, ReportsModule],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    AuthModule,
+    EmployeesModule,
+    RequestsModule,
+    ReportsModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
