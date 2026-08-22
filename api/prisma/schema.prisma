@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -10,4 +8,126 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  HR_USER
+  DEPARTMENT_MANAGER
+  EMPLOYEE
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  INACTIVE
+  TERMINATED
+}
+
+enum LeaveRequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  MATERNITY
+  PATERNITY
+  UNPAID
+  OTHER
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  role         UserRole
+  isActive     Boolean  @default(true)
+
+  employeeId   String?  @unique
+  employee     Employee? @relation(fields: [employeeId], references: [id])
+
+  reviewedLeaveRequests LeaveRequest[] @relation("LeaveRequestReviewer")
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([role])
+  @@index([isActive])
+}
+
+model Department {
+  id        String @id @default(uuid())
+  name      String @unique
+
+  managerId String? @unique
+  manager   Employee? @relation("DepartmentManager", fields: [managerId], references: [id])
+
+  employees Employee[] @relation("DepartmentEmployees")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([managerId])
+}
+
+model Employee {
+  id         String @id @default(uuid())
+
+  employeeId String @unique
+  fullName   String
+  phone      String
+  email      String @unique
+  position   String
+  hireDate   DateTime
+  status     EmploymentStatus @default(ACTIVE)
+
+  departmentId String
+  department   Department @relation("DepartmentEmployees", fields: [departmentId], references: [id])
+
+  user          User?
+  leaveRequests LeaveRequest[]
+
+  managedDepartment Department? @relation("DepartmentManager")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([departmentId])
+  @@index([status])
+  @@index([fullName])
+}
+
+model LeaveRequest {
+  id            String @id @default(uuid())
+  requestNumber String @unique
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  leaveType LeaveType
+  startDate DateTime
+  endDate   DateTime
+  leaveDays Int
+
+  reason String
+
+  status LeaveRequestStatus @default(DRAFT)
+
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewer     User? @relation("LeaveRequestReviewer", fields: [reviewedById], references: [id])
+
+  rejectionReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([leaveType])
+  @@index([startDate])
+  @@index([reviewedById])
 }
