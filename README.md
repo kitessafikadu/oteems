@@ -1,13 +1,10 @@
-# Oteems - Employee Management System f
+# Oteems - Employee Management System
 
 A full-stack **Employee Management System** developed as a pre-employment assessment project for OTech Engineering & Technology Solutions PLC.
 
 The system centralizes employee information and digitizes the employee leave request and approval process, replacing fragmented manual processes with a structured and traceable workflow.
 
 ## Overview
-
-OTech's existing employee and HR processes rely on Excel spreadsheets, paper forms, email, phone calls, and informal approval processes. This can lead to inconsistent employee records, delayed or lost requests, unclear approval status, and difficulty generating reports.
-
 The Employee Management System provides a centralized platform for:
 
 - Managing employee records
@@ -423,20 +420,6 @@ The project will be developed in the following order:
 14. Deployment
 ```
 
-## Project Objective
-
-The goal of the project is not to build a large enterprise HR platform. It is to provide a **small, functional, understandable management system** that demonstrates the complete business process from employee management through leave request submission and approval.
-
-The implementation prioritizes:
-
-- Clear business logic
-- Reliable data
-- Role-based access
-- Validation
-- A complete leave workflow
-- Useful reports
-- Clean and maintainable code
-- Simple and usable interface
 
 ## License
 
