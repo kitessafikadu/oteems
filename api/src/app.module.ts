@@ -6,11 +6,13 @@ import { EmployeesModule } from './employees/employees.module';
 import { RequestsModule } from './requests/requests.module';
 import { ReportsModule } from './reports/reports.module';
 import { ConfigModule } from '@nestjs/config';
+import { PrismaModule } from './prisma/prisma.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    PrismaModule,
     AuthModule,
     EmployeesModule,
     RequestsModule,
