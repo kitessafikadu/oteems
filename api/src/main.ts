@@ -21,7 +21,14 @@ async function bootstrap() {
     .setTitle('Oteems API')
     .setDescription('API documentation for the Oteems application')
     .setVersion('1.0')
-    .addBearerAuth()
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+      },
+      'access-token',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
