@@ -5,7 +5,7 @@ import { neueHaas } from "./fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Oteems",
+  title: "oteems",
   description: "Employee Management System for OTech Engineering",
 };
 
