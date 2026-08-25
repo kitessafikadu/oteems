@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
+import { AssignDepartmentManagerDto } from './dto/assign-department-manager.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
@@ -466,6 +467,187 @@ export class AdminService {
           },
         },
       },
+    });
+  }
+
+  async assignDepartmentManager(
+    departmentId: string,
+    assignDepartmentManagerDto: AssignDepartmentManagerDto,
+  ) {
+    const { managerId } = assignDepartmentManagerDto;
+
+    const department = await this.prisma.department.findUnique({
+      where: {
+        id: departmentId,
+      },
+    });
+
+    if (!department) {
+      throw new NotFoundException('Department not found');
+    }
+
+    const manager = await this.prisma.employee.findUnique({
+      where: {
+        id: managerId,
+      },
+      select: {
+        id: true,
+        employeeId: true,
+        fullName: true,
+        email: true,
+        position: true,
+        status: true,
+        user: {
+          select: {
+            id: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!manager) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    if (manager.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'Only active employees can be assigned as department managers',
+      );
+    }
+
+    const existingManagedDepartment = await this.prisma.department.findFirst({
+      where: {
+        managerId,
+        NOT: {
+          id: departmentId,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    if (existingManagedDepartment) {
+      throw new ConflictException(
+        `This employee is already managing the ${existingManagedDepartment.name} department`,
+      );
+    }
+
+    const updatedDepartment = await this.prisma.$transaction(async (tx) => {
+      const department = await tx.department.update({
+        where: {
+          id: departmentId,
+        },
+        data: {
+          managerId,
+        },
+        select: {
+          id: true,
+          name: true,
+          managerId: true,
+          createdAt: true,
+          updatedAt: true,
+          manager: {
+            select: {
+              id: true,
+              employeeId: true,
+              fullName: true,
+              email: true,
+              position: true,
+              status: true,
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  role: true,
+                  isActive: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // If the employee has an account, make sure
+      // their role reflects their new responsibility.
+      if (manager.user) {
+        await tx.user.update({
+          where: {
+            id: manager.user.id,
+          },
+          data: {
+            role: UserRole.DEPARTMENT_MANAGER,
+          },
+        });
+      }
+
+      return department;
+    });
+
+    return {
+      message: 'Department manager assigned successfully',
+      department: updatedDepartment,
+    };
+  }
+
+  async removeDepartmentManager(departmentId: string) {
+    const department = await this.prisma.department.findUnique({
+      where: {
+        id: departmentId,
+      },
+      select: {
+        id: true,
+        name: true,
+        managerId: true,
+        manager: {
+          select: {
+            id: true,
+            employeeId: true,
+            fullName: true,
+            user: {
+              select: {
+                id: true,
+                role: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!department) {
+      throw new NotFoundException('Department not found');
+    }
+
+    if (!department.managerId) {
+      throw new BadRequestException('This department does not have a manager');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updatedDepartment = await tx.department.update({
+        where: {
+          id: departmentId,
+        },
+        data: {
+          managerId: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          managerId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      // Do not automatically downgrade the user's role here.
+      // The role should be explicitly managed by an administrator.
+      return {
+        message: 'Department manager removed successfully',
+        department: updatedDepartment,
+      };
     });
   }
 
