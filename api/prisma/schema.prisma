@@ -73,23 +73,27 @@ model Department {
   @@index([managerId])
 }
 
-model Employee {
-  id         String @id @default(uuid())
+model EmployeeIdSequence {
+  role       UserRole @id
+  nextNumber Int      @default(1001)
+  updatedAt  DateTime @updatedAt
+}
 
-  employeeId String @unique
-  fullName   String
-  phone      String
-  email      String @unique
-  position   String
-  hireDate   DateTime
-  status     EmploymentStatus @default(ACTIVE)
+model Employee {
+  id           String           @id @default(uuid())
+  employeeId   String           @unique
+  fullName     String
+  phone        String
+  email        String           @unique
+  position     String
+  hireDate     DateTime
+  status       EmploymentStatus @default(ACTIVE)
 
   departmentId String
-  department   Department @relation("DepartmentEmployees", fields: [departmentId], references: [id])
+  department   Department       @relation("DepartmentEmployees", fields: [departmentId], references: [id])
 
-  user          User?
-  leaveRequests LeaveRequest[]
-
+  user             User?
+  leaveRequests    LeaveRequest[]
   managedDepartment Department? @relation("DepartmentManager")
 
   createdAt DateTime @default(now())

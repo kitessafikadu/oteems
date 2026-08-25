@@ -1,15 +1,42 @@
 import { PrismaClient, UserRole } from '../generated/prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg'; // Import the adapter
+import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 import * as bcrypt from 'bcrypt';
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
 const adapter = new PrismaPg(pool);
 
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient({
+  adapter,
+});
 
 async function main() {
   console.log('🌱 Starting database seed...');
+
+  const roles = [
+    UserRole.ADMIN,
+    UserRole.HR_USER,
+    UserRole.DEPARTMENT_MANAGER,
+    UserRole.EMPLOYEE,
+  ];
+
+  for (const role of roles) {
+    await prisma.employeeIdSequence.upsert({
+      where: {
+        role,
+      },
+      update: {},
+      create: {
+        role,
+        nextNumber: 1001,
+      },
+    });
+
+    console.log(`✅ Employee ID sequence initialized: ${role}`);
+  }
 
   const adminPassword = await bcrypt.hash('admin@123', 10);
 
@@ -31,7 +58,8 @@ async function main() {
   });
 
   console.log(`✅ Admin user created: ${admin.username}`);
-  console.log('🌱 Database seed completed.');
+
+  console.log('🌱 Database seed completed successfully.');
 }
 
 main()
@@ -41,4 +69,5 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
+    await pool.end();
   });
