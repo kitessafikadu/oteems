@@ -1,16 +1,20 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
-import { EmployeesService } from './employees.service';
-import { CreateEmployeeDto } from './dto/create-employee.dto';
-import { UpdateEmployeeDto } from './dto/update-employee.dto';
+import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
 
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+
+import { EmployeesService } from './employees.service';
+
+import { UpdateEmployeeDto } from './dto/update-employee.dto';
+import { UpdateEmployeeStatusDto } from './dto/update-employee-status.dto';
+
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+@ApiTags('Employees')
+@ApiBearerAuth('access-token')
 @Controller('employees')
+@UseGuards(JwtAuthGuard)
 export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
-
-  @Post()
-  create(@Body() createEmployeeDto: CreateEmployeeDto) {
-    return this.employeesService.create(createEmployeeDto);
-  }
 
   @Get()
   findAll() {
@@ -19,16 +23,22 @@ export class EmployeesController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.employeesService.findOne(+id);
+    return this.employeesService.findOne(id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateEmployeeDto: UpdateEmployeeDto) {
-    return this.employeesService.update(+id, updateEmployeeDto);
+  update(
+    @Param('id') id: string,
+    @Body() updateEmployeeDto: UpdateEmployeeDto,
+  ) {
+    return this.employeesService.update(id, updateEmployeeDto);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.employeesService.remove(+id);
+  @Patch(':id/status')
+  updateStatus(
+    @Param('id') id: string,
+    @Body() updateEmployeeStatusDto: UpdateEmployeeStatusDto,
+  ) {
+    return this.employeesService.updateStatus(id, updateEmployeeStatusDto);
   }
 }
