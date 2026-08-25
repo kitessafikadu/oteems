@@ -4,19 +4,40 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { Prisma } from '../../generated/prisma/client';
+import { Prisma, UserRole } from '../../generated/prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+
+import {
+  AuthenticatedUser,
+  EmployeeAccessService,
+} from './employee-access.service';
 
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { UpdateEmployeeStatusDto } from './dto/update-employee-status.dto';
 
 @Injectable()
 export class EmployeesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly employeeAccessService: EmployeeAccessService,
+  ) {}
 
-  async findAll() {
+  // ============================================================
+  // GET ALL EMPLOYEES
+  // ============================================================
+
+  async findAll(user: AuthenticatedUser) {
+    const departmentId =
+      await this.employeeAccessService.canViewEmployees(user);
+
     return this.prisma.employee.findMany({
+      where: departmentId
+        ? {
+            departmentId,
+          }
+        : undefined,
+
       select: {
         id: true,
         employeeId: true,
@@ -53,7 +74,11 @@ export class EmployeesService {
     });
   }
 
-  async findOne(id: string) {
+  // ============================================================
+  // GET EMPLOYEE BY ID
+  // ============================================================
+
+  async findOne(id: string, user: AuthenticatedUser) {
     const employee = await this.prisma.employee.findUnique({
       where: {
         id,
@@ -97,18 +122,33 @@ export class EmployeesService {
       throw new NotFoundException('Employee not found');
     }
 
+    await this.employeeAccessService.canViewEmployee(user, employee.id);
+
     return employee;
   }
 
+  // ============================================================
+  // UPDATE EMPLOYEE
+  // ADMIN + HR_USER
+  // ============================================================
+
   async update(id: string, updateEmployeeDto: UpdateEmployeeDto) {
-    await this.findOne(id);
+    const existingEmployee = await this.prisma.employee.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!existingEmployee) {
+      throw new NotFoundException('Employee not found');
+    }
 
     const { fullName, phone, email, position, hireDate, departmentId } =
       updateEmployeeDto;
 
-    // Check email uniqueness
+    // Check email uniqueness.
     if (email) {
-      const existingEmployee = await this.prisma.employee.findFirst({
+      const existingEmail = await this.prisma.employee.findFirst({
         where: {
           email,
           NOT: {
@@ -117,14 +157,14 @@ export class EmployeesService {
         },
       });
 
-      if (existingEmployee) {
+      if (existingEmail) {
         throw new ConflictException(
           'An employee with this email already exists',
         );
       }
     }
 
-    // Check department
+    // Check department exists.
     if (departmentId) {
       const department = await this.prisma.department.findUnique({
         where: {
@@ -204,11 +244,24 @@ export class EmployeesService {
     }
   }
 
+  // ============================================================
+  // UPDATE EMPLOYMENT STATUS
+  // ADMIN + HR_USER
+  // ============================================================
+
   async updateStatus(
     id: string,
     updateEmployeeStatusDto: UpdateEmployeeStatusDto,
   ) {
-    await this.findOne(id);
+    const employee = await this.prisma.employee.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
 
     return this.prisma.employee.update({
       where: {

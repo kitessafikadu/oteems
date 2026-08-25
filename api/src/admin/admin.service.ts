@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -254,7 +255,7 @@ export class AdminService {
   // DEPARTMENT MANAGEMENT
 
   async createDepartment(createDepartmentDto: CreateDepartmentDto) {
-    const { name } = createDepartmentDto;
+    const { name, managerId } = createDepartmentDto;
 
     const existingDepartment = await this.prisma.department.findUnique({
       where: {
@@ -263,12 +264,45 @@ export class AdminService {
     });
 
     if (existingDepartment) {
-      throw new ConflictException('Department already exists');
+      throw new ConflictException('Department with this name already exists');
+    }
+
+    if (managerId) {
+      const manager = await this.prisma.employee.findUnique({
+        where: {
+          id: managerId,
+        },
+      });
+
+      if (!manager) {
+        throw new NotFoundException('Manager employee not found');
+      }
+
+      if (manager.status !== 'ACTIVE') {
+        throw new BadRequestException(
+          'Only active employees can be assigned as department managers',
+        );
+      }
+
+      const existingManagedDepartment = await this.prisma.department.findUnique(
+        {
+          where: {
+            managerId,
+          },
+        },
+      );
+
+      if (existingManagedDepartment) {
+        throw new ConflictException(
+          'This employee is already a manager of another department',
+        );
+      }
     }
 
     return this.prisma.department.create({
       data: {
         name,
+        managerId: managerId ?? null,
       },
 
       select: {
@@ -277,6 +311,16 @@ export class AdminService {
         managerId: true,
         createdAt: true,
         updatedAt: true,
+
+        manager: {
+          select: {
+            id: true,
+            employeeId: true,
+            fullName: true,
+            email: true,
+            position: true,
+          },
+        },
       },
     });
   }
