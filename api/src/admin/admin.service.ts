@@ -500,7 +500,9 @@ export class AdminService {
         user: {
           select: {
             id: true,
+            username: true,
             role: true,
+            isActive: true,
           },
         },
       },
@@ -516,16 +518,22 @@ export class AdminService {
       );
     }
 
+    if (!manager.user) {
+      throw new BadRequestException(
+        'The employee must have a user account before being assigned as a department manager',
+      );
+    }
+
+    if (!manager.user.isActive) {
+      throw new BadRequestException('The employee user account is inactive');
+    }
+
     const existingManagedDepartment = await this.prisma.department.findFirst({
       where: {
         managerId,
         NOT: {
           id: departmentId,
         },
-      },
-      select: {
-        id: true,
-        name: true,
       },
     });
 
@@ -536,12 +544,37 @@ export class AdminService {
     }
 
     const updatedDepartment = await this.prisma.$transaction(async (tx) => {
-      const department = await tx.department.update({
+      // Generate a new MGR employee ID
+      const sequence = await tx.employeeIdSequence.update({
+        where: {
+          role: UserRole.DEPARTMENT_MANAGER,
+        },
+        data: {
+          nextNumber: {
+            increment: 1,
+          },
+        },
+      });
+
+      const managerEmployeeId = `MGR-${sequence.nextNumber - 1}`;
+
+      // Update employee's human-readable employee ID
+      await tx.employee.update({
+        where: {
+          id: manager.id,
+        },
+        data: {
+          employeeId: managerEmployeeId,
+        },
+      });
+
+      // Assign employee as department manager
+      const updated = await tx.department.update({
         where: {
           id: departmentId,
         },
         data: {
-          managerId,
+          managerId: manager.id,
         },
         select: {
           id: true,
@@ -570,20 +603,17 @@ export class AdminService {
         },
       });
 
-      // If the employee has an account, make sure
-      // their role reflects their new responsibility.
-      if (manager.user) {
-        await tx.user.update({
-          where: {
-            id: manager.user.id,
-          },
-          data: {
-            role: UserRole.DEPARTMENT_MANAGER,
-          },
-        });
-      }
+      // Update account role
+      await tx.user.update({
+        where: {
+          id: manager.user!.id,
+        },
+        data: {
+          role: UserRole.DEPARTMENT_MANAGER,
+        },
+      });
 
-      return department;
+      return updated;
     });
 
     return {
