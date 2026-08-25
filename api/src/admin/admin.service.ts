@@ -8,13 +8,17 @@ import { Prisma, UserRole } from '../../generated/prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+
 import { CreateDepartmentDto } from './dto/create-department.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateDepartmentDto } from './dto/update-department.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // USER MANAGEMENT
 
   async createUser(createUserDto: CreateUserDto) {
     const {
@@ -30,7 +34,7 @@ export class AdminService {
       isActive = true,
     } = createUserDto;
 
-    // Check if username already exists
+    // Check username
     const existingUser = await this.prisma.user.findUnique({
       where: {
         username,
@@ -41,7 +45,7 @@ export class AdminService {
       throw new ConflictException('Username already exists');
     }
 
-    // Check if employee email already exists
+    // Check employee email
     const existingEmployee = await this.prisma.employee.findUnique({
       where: {
         email,
@@ -52,7 +56,7 @@ export class AdminService {
       throw new ConflictException('An employee with this email already exists');
     }
 
-    // Check if department exists
+    // Check department
     const department = await this.prisma.department.findUnique({
       where: {
         id: departmentId,
@@ -63,15 +67,12 @@ export class AdminService {
       throw new NotFoundException('Department not found');
     }
 
-    // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Create employee and user in one transaction
+    // Create employee and user atomically
     const result = await this.prisma.$transaction(async (tx) => {
-      // Generate role-based employee ID
       const employeeId = await this.generateEmployeeId(tx, role);
 
-      // Create employee
       const employee = await tx.employee.create({
         data: {
           employeeId,
@@ -85,7 +86,6 @@ export class AdminService {
         },
       });
 
-      // Create user account
       const user = await tx.user.create({
         data: {
           username,
@@ -148,6 +148,7 @@ export class AdminService {
         isActive: true,
         createdAt: true,
         updatedAt: true,
+
         employee: {
           select: {
             employeeId: true,
@@ -161,6 +162,7 @@ export class AdminService {
           },
         },
       },
+
       orderBy: {
         createdAt: 'desc',
       },
@@ -172,6 +174,7 @@ export class AdminService {
       where: {
         id,
       },
+
       select: {
         id: true,
         username: true,
@@ -180,6 +183,7 @@ export class AdminService {
         isActive: true,
         createdAt: true,
         updatedAt: true,
+
         employee: true,
       },
     });
@@ -194,7 +198,6 @@ export class AdminService {
   async updateUser(id: string, updateUserDto: UpdateUserDto) {
     await this.findUserById(id);
 
-    // If employeeId is provided, verify employee exists
     if (updateUserDto.employeeId) {
       const employee = await this.prisma.employee.findUnique({
         where: {
@@ -211,7 +214,9 @@ export class AdminService {
       where: {
         id,
       },
+
       data: updateUserDto,
+
       select: {
         id: true,
         username: true,
@@ -231,9 +236,11 @@ export class AdminService {
       where: {
         id,
       },
+
       data: {
         isActive: false,
       },
+
       select: {
         id: true,
         username: true,
@@ -244,15 +251,184 @@ export class AdminService {
     });
   }
 
-  /**
-   * Generates the next employee ID for a specific role.
-   *
-   * Examples:
-   * ADM1001
-   * HR1001
-   * MGR1001
-   * EMP1001
-   */
+  // DEPARTMENT MANAGEMENT
+
+  async createDepartment(createDepartmentDto: CreateDepartmentDto) {
+    const { name } = createDepartmentDto;
+
+    const existingDepartment = await this.prisma.department.findUnique({
+      where: {
+        name,
+      },
+    });
+
+    if (existingDepartment) {
+      throw new ConflictException('Department already exists');
+    }
+
+    return this.prisma.department.create({
+      data: {
+        name,
+      },
+
+      select: {
+        id: true,
+        name: true,
+        managerId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async findAllDepartments() {
+    return this.prisma.department.findMany({
+      select: {
+        id: true,
+        name: true,
+        managerId: true,
+        createdAt: true,
+        updatedAt: true,
+
+        manager: {
+          select: {
+            id: true,
+            employeeId: true,
+            fullName: true,
+            email: true,
+            position: true,
+          },
+        },
+
+        _count: {
+          select: {
+            employees: true,
+          },
+        },
+      },
+
+      orderBy: {
+        name: 'asc',
+      },
+    });
+  }
+
+  async findDepartmentById(id: string) {
+    const department = await this.prisma.department.findUnique({
+      where: {
+        id,
+      },
+
+      select: {
+        id: true,
+        name: true,
+        managerId: true,
+        createdAt: true,
+        updatedAt: true,
+
+        manager: {
+          select: {
+            id: true,
+            employeeId: true,
+            fullName: true,
+            email: true,
+            position: true,
+          },
+        },
+
+        employees: {
+          select: {
+            id: true,
+            employeeId: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            position: true,
+            hireDate: true,
+            status: true,
+          },
+
+          orderBy: {
+            fullName: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!department) {
+      throw new NotFoundException('Department not found');
+    }
+
+    return department;
+  }
+
+  async updateDepartment(id: string, updateDepartmentDto: UpdateDepartmentDto) {
+    const department = await this.prisma.department.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!department) {
+      throw new NotFoundException('Department not found');
+    }
+
+    if (updateDepartmentDto.name) {
+      const existingDepartment = await this.prisma.department.findFirst({
+        where: {
+          name: updateDepartmentDto.name,
+          NOT: {
+            id,
+          },
+        },
+      });
+
+      if (existingDepartment) {
+        throw new ConflictException('Department name already exists');
+      }
+    }
+
+    return this.prisma.department.update({
+      where: {
+        id,
+      },
+
+      data: {
+        ...(updateDepartmentDto.name && {
+          name: updateDepartmentDto.name,
+        }),
+      },
+
+      select: {
+        id: true,
+        name: true,
+        managerId: true,
+        createdAt: true,
+        updatedAt: true,
+
+        manager: {
+          select: {
+            id: true,
+            employeeId: true,
+            fullName: true,
+            email: true,
+            position: true,
+          },
+        },
+
+        _count: {
+          select: {
+            employees: true,
+          },
+        },
+      },
+    });
+  }
+
+  // ============================================================
+  // EMPLOYEE ID GENERATION
+  // ============================================================
+
   private async generateEmployeeId(
     tx: Prisma.TransactionClient,
     role: UserRole,
@@ -261,6 +437,7 @@ export class AdminService {
       where: {
         role,
       },
+
       data: {
         nextNumber: {
           increment: 1,
@@ -274,9 +451,6 @@ export class AdminService {
     return `${prefix}${number}`;
   }
 
-  /**
-   * Returns the employee ID prefix based on the user's role.
-   */
   private getEmployeeIdPrefix(role: UserRole): string {
     switch (role) {
       case UserRole.ADMIN:

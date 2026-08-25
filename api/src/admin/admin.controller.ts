@@ -7,26 +7,25 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
-import { UserRole } from '../../generated/prisma/client';
-
-import { Roles } from '../auth/decorators/roles.decorator';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-
 import { AdminService } from './admin.service';
+
+import { CreateDepartmentDto } from './dto/create-department.dto';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Admin')
 @ApiBearerAuth('access-token')
 @Controller('admin')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+@UseGuards(JwtAuthGuard)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
+
+  // USER MANAGEMENT
 
   @Post('users')
   createUser(@Body() createUserDto: CreateUserDto) {
@@ -51,5 +50,30 @@ export class AdminController {
   @Patch('users/:id/deactivate')
   deactivateUser(@Param('id') id: string) {
     return this.adminService.deactivateUser(id);
+  }
+
+  // DEPARTMENT MANAGEMENT
+
+  @Post('departments')
+  createDepartment(@Body() createDepartmentDto: CreateDepartmentDto) {
+    return this.adminService.createDepartment(createDepartmentDto);
+  }
+
+  @Get('departments')
+  findAllDepartments() {
+    return this.adminService.findAllDepartments();
+  }
+
+  @Get('departments/:id')
+  findDepartmentById(@Param('id') id: string) {
+    return this.adminService.findDepartmentById(id);
+  }
+
+  @Patch('departments/:id')
+  updateDepartment(
+    @Param('id') id: string,
+    @Body() updateDepartmentDto: UpdateDepartmentDto,
+  ) {
+    return this.adminService.updateDepartment(id, updateDepartmentDto);
   }
 }
