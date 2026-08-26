@@ -9,7 +9,6 @@ import { ReportsModule } from './reports/reports.module';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { AdminModule } from './admin/admin.module';
-import { DepartmentsModule } from './departments/departments.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -21,7 +20,6 @@ import { DepartmentsModule } from './departments/departments.module';
     RequestsModule,
     ReportsModule,
     AdminModule,
-    DepartmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,5 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// This is your Prisma schema file.
+// Learn more about it in the Prisma documentation:
+// https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client"
@@ -28,6 +29,16 @@ enum LeaveRequestStatus {
   SUBMITTED
   APPROVED
   REJECTED
+  CANCELLED
+}
+
+enum LeaveRequestAction {
+  CREATED
+  SUBMITTED
+  APPROVED
+  REJECTED
+  RESUBMITTED
+  CANCELLED
 }
 
 enum LeaveType {
@@ -39,6 +50,10 @@ enum LeaveType {
   OTHER
 }
 
+// ============================================================
+// USER
+// ============================================================
+
 model User {
   id           String   @id @default(uuid())
   username     String   @unique
@@ -46,25 +61,36 @@ model User {
   role         UserRole
   isActive     Boolean  @default(true)
 
-  employeeId   String?  @unique
-  employee     Employee? @relation(fields: [employeeId], references: [id])
+  // Link account to employee
+  employeeId String?   @unique
+  employee   Employee? @relation(fields: [employeeId], references: [id])
 
+  // Leave requests reviewed by this user
   reviewedLeaveRequests LeaveRequest[] @relation("LeaveRequestReviewer")
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  // Leave request history actions performed by this user
+  leaveRequestHistory LeaveRequestHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([role])
   @@index([isActive])
 }
 
-model Department {
-  id        String @id @default(uuid())
-  name      String @unique
+// ============================================================
+// DEPARTMENT
+// ============================================================
 
-  managerId String? @unique
+model Department {
+  id        String  @id @default(uuid())
+  name      String  @unique
+
+  // Employee who manages this department
+  managerId String?   @unique
   manager   Employee? @relation("DepartmentManager", fields: [managerId], references: [id])
 
+  // Employees belonging to this department
   employees Employee[] @relation("DepartmentEmployees")
 
   createdAt DateTime @default(now())
@@ -73,27 +99,43 @@ model Department {
   @@index([managerId])
 }
 
+// ============================================================
+// EMPLOYEE ID SEQUENCE
+// ============================================================
+
 model EmployeeIdSequence {
   role       UserRole @id
   nextNumber Int      @default(1001)
   updatedAt  DateTime @updatedAt
 }
 
+// ============================================================
+// EMPLOYEE
+// ============================================================
+
 model Employee {
-  id           String           @id @default(uuid())
-  employeeId   String           @unique
-  fullName     String
-  phone        String
-  email        String           @unique
-  position     String
-  hireDate     DateTime
-  status       EmploymentStatus @default(ACTIVE)
+  id         String           @id @default(uuid())
+  employeeId String           @unique
 
+  fullName String
+  phone    String
+  email    String           @unique
+  position String
+  hireDate DateTime
+
+  status EmploymentStatus @default(ACTIVE)
+
+  // Department
   departmentId String
-  department   Department       @relation("DepartmentEmployees", fields: [departmentId], references: [id])
+  department   Department @relation("DepartmentEmployees", fields: [departmentId], references: [id])
 
-  user             User?
-  leaveRequests    LeaveRequest[]
+  // Login account
+  user User?
+
+  // Employee leave requests
+  leaveRequests LeaveRequest[]
+
+  // Department managed by this employee
   managedDepartment Department? @relation("DepartmentManager")
 
   createdAt DateTime @default(now())
@@ -104,27 +146,39 @@ model Employee {
   @@index([fullName])
 }
 
+// ============================================================
+// LEAVE REQUEST
+// ============================================================
+
 model LeaveRequest {
   id            String @id @default(uuid())
   requestNumber String @unique
 
+  // Employee requesting leave
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id])
 
+  // Leave information
   leaveType LeaveType
+
   startDate DateTime
   endDate   DateTime
   leaveDays Int
 
   reason String
 
+  // Current workflow status
   status LeaveRequestStatus @default(DRAFT)
 
+  // Latest review information
   reviewedAt   DateTime?
   reviewedById String?
   reviewer     User? @relation("LeaveRequestReviewer", fields: [reviewedById], references: [id])
 
   rejectionReason String?
+
+  // Complete request history
+  history LeaveRequestHistory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -134,4 +188,32 @@ model LeaveRequest {
   @@index([leaveType])
   @@index([startDate])
   @@index([reviewedById])
+}
+
+// ============================================================
+// LEAVE REQUEST HISTORY
+// ============================================================
+
+model LeaveRequestHistory {
+  id String @id @default(uuid())
+
+  // Request associated with this history record
+  leaveRequestId String
+  leaveRequest   LeaveRequest @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+
+  // What happened
+  action LeaveRequestAction
+
+  // User who performed the action
+  performedById String
+  performedBy   User @relation(fields: [performedById], references: [id])
+
+  // Optional comment/reason
+  comment String?
+
+  createdAt DateTime @default(now())
+
+  @@index([leaveRequestId])
+  @@index([performedById])
+  @@index([action])
 }

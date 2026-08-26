@@ -1,26 +1,1001 @@
-import { Injectable } from '@nestjs/common';
-import { CreateRequestDto } from './dto/create-request.dto';
-import { UpdateRequestDto } from './dto/update-request.dto';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+
+import {
+  EmploymentStatus,
+  LeaveRequestAction,
+  LeaveRequestStatus,
+  Prisma,
+  UserRole,
+} from '../../generated/prisma/client';
+
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
+import { RejectLeaveRequestDto } from './dto/reject-leave-request.dto';
 
 @Injectable()
 export class RequestsService {
-  create(createRequestDto: CreateRequestDto) {
-    return 'This action adds a new request';
+  constructor(private readonly prisma: PrismaService) {}
+
+  // ============================================================
+  // CREATE REQUEST
+  // ============================================================
+
+  async createRequest(
+    userId: string,
+    createLeaveRequestDto: CreateLeaveRequestDto,
+  ) {
+    const user = await this.getUserWithEmployee(userId);
+
+    if (!user.employee) {
+      throw new BadRequestException(
+        'Your account is not linked to an employee',
+      );
+    }
+
+    if (
+      user.role !== UserRole.EMPLOYEE &&
+      user.role !== UserRole.DEPARTMENT_MANAGER
+    ) {
+      throw new ForbiddenException('Only employees can create leave requests');
+    }
+
+    if (user.employee.status !== EmploymentStatus.ACTIVE) {
+      throw new ForbiddenException(
+        'Only active employees can create leave requests',
+      );
+    }
+
+    const startDate = this.normalizeDate(createLeaveRequestDto.startDate);
+
+    const endDate = this.normalizeDate(createLeaveRequestDto.endDate);
+
+    if (endDate < startDate) {
+      throw new BadRequestException('End date cannot be before start date');
+    }
+
+    const today = this.startOfToday();
+
+    if (startDate < today) {
+      throw new BadRequestException('Leave start date cannot be in the past');
+    }
+
+    const leaveDays = this.calculateLeaveDays(startDate, endDate);
+
+    await this.checkForOverlappingRequests(
+      user.employee.id,
+      startDate,
+      endDate,
+    );
+
+    const requestNumber = await this.generateRequestNumber();
+
+    const request = await this.prisma.$transaction(async (tx) => {
+      const createdRequest = await tx.leaveRequest.create({
+        data: {
+          requestNumber,
+          employeeId: user.employee!.id,
+          leaveType: createLeaveRequestDto.leaveType,
+          startDate,
+          endDate,
+          leaveDays,
+          reason: createLeaveRequestDto.reason,
+          status: LeaveRequestStatus.SUBMITTED,
+        },
+      });
+
+      await tx.leaveRequestHistory.create({
+        data: {
+          leaveRequestId: createdRequest.id,
+          action: LeaveRequestAction.CREATED,
+          performedById: user.id,
+          comment: 'Leave request created',
+        },
+      });
+
+      await tx.leaveRequestHistory.create({
+        data: {
+          leaveRequestId: createdRequest.id,
+          action: LeaveRequestAction.SUBMITTED,
+          performedById: user.id,
+          comment: 'Leave request submitted for review',
+        },
+      });
+
+      return createdRequest;
+    });
+
+    return this.getRequestById(userId, request.id);
   }
 
-  findAll() {
-    return `This action returns all requests`;
+  // ============================================================
+  // GET MY REQUESTS
+  // ============================================================
+
+  async getMyRequests(userId: string) {
+    const user = await this.getUserWithEmployee(userId);
+
+    if (!user.employee) {
+      throw new BadRequestException(
+        'Your account is not linked to an employee',
+      );
+    }
+
+    return this.prisma.leaveRequest.findMany({
+      where: {
+        employeeId: user.employee.id,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        employee: {
+          select: {
+            employeeId: true,
+            fullName: true,
+            position: true,
+          },
+        },
+        reviewer: {
+          select: {
+            id: true,
+            username: true,
+            role: true,
+          },
+        },
+      },
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} request`;
+  // ============================================================
+  // GET ALL REQUESTS
+  // ADMIN + HR
+  // ============================================================
+
+  async getAllRequests(userId: string) {
+    const user = await this.getUserWithEmployee(userId);
+
+    this.ensureRole(user.role, [UserRole.ADMIN, UserRole.HR_USER]);
+
+    return this.prisma.leaveRequest.findMany({
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            employeeId: true,
+            fullName: true,
+            position: true,
+            department: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+        reviewer: {
+          select: {
+            id: true,
+            username: true,
+            role: true,
+          },
+        },
+      },
+    });
   }
 
-  update(id: number, updateRequestDto: UpdateRequestDto) {
-    return `This action updates a #${id} request`;
+  // ============================================================
+  // GET DEPARTMENT REQUESTS
+  // DEPARTMENT MANAGER
+  // ============================================================
+
+  async getDepartmentRequests(userId: string) {
+    const user = await this.getUserWithEmployee(userId);
+
+    if (user.role !== UserRole.DEPARTMENT_MANAGER) {
+      throw new ForbiddenException(
+        'Only department managers can view department requests',
+      );
+    }
+
+    if (!user.employee) {
+      throw new ForbiddenException('Manager is not linked to an employee');
+    }
+
+    const department = await this.prisma.department.findUnique({
+      where: {
+        managerId: user.employee.id,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    if (!department) {
+      throw new ForbiddenException('You are not assigned to a department');
+    }
+
+    return this.prisma.leaveRequest.findMany({
+      where: {
+        employee: {
+          departmentId: department.id,
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            employeeId: true,
+            fullName: true,
+            position: true,
+          },
+        },
+        reviewer: {
+          select: {
+            id: true,
+            username: true,
+            role: true,
+          },
+        },
+      },
+    });
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} request`;
+  // ============================================================
+  // GET REQUEST BY ID
+  // ============================================================
+
+  async getRequestById(userId: string, requestId: string) {
+    const user = await this.getUserWithEmployee(userId);
+
+    const request = await this.prisma.leaveRequest.findUnique({
+      where: {
+        id: requestId,
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            employeeId: true,
+            fullName: true,
+            phone: true,
+            email: true,
+            position: true,
+            departmentId: true,
+            department: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+        reviewer: {
+          select: {
+            id: true,
+            username: true,
+            role: true,
+          },
+        },
+        history: {
+          orderBy: {
+            createdAt: 'asc',
+          },
+          include: {
+            performedBy: {
+              select: {
+                id: true,
+                username: true,
+                role: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Leave request not found');
+    }
+
+    await this.ensureCanViewRequest(
+      user,
+      request.employeeId,
+      request.employee.departmentId,
+    );
+
+    return request;
+  }
+
+  // ============================================================
+  // EDIT REQUEST
+  //
+  // Allowed:
+  // DRAFT
+  // REJECTED
+  // ============================================================
+
+  async updateRequest(
+    userId: string,
+    requestId: string,
+    dto: CreateLeaveRequestDto,
+  ) {
+    const user = await this.getUserWithEmployee(userId);
+
+    if (!user.employee) {
+      throw new BadRequestException(
+        'Your account is not linked to an employee',
+      );
+    }
+
+    const request = await this.prisma.leaveRequest.findUnique({
+      where: {
+        id: requestId,
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Leave request not found');
+    }
+
+    if (request.employeeId !== user.employee.id) {
+      throw new ForbiddenException('You can only edit your own leave requests');
+    }
+
+    if (
+      request.status !== LeaveRequestStatus.DRAFT &&
+      request.status !== LeaveRequestStatus.REJECTED
+    ) {
+      throw new BadRequestException(
+        'Only draft or rejected requests can be edited',
+      );
+    }
+
+    const startDate = this.normalizeDate(dto.startDate);
+
+    const endDate = this.normalizeDate(dto.endDate);
+
+    if (endDate < startDate) {
+      throw new BadRequestException('End date cannot be before start date');
+    }
+
+    if (startDate < this.startOfToday()) {
+      throw new BadRequestException('Leave start date cannot be in the past');
+    }
+
+    const leaveDays = this.calculateLeaveDays(startDate, endDate);
+
+    await this.checkForOverlappingRequests(
+      request.employeeId,
+      startDate,
+      endDate,
+      request.id,
+    );
+
+    return this.prisma.leaveRequest.update({
+      where: {
+        id: requestId,
+      },
+      data: {
+        leaveType: dto.leaveType,
+        startDate,
+        endDate,
+        leaveDays,
+        reason: dto.reason,
+      },
+      include: {
+        employee: {
+          select: {
+            employeeId: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+  }
+
+  // ============================================================
+  // RESUBMIT REJECTED REQUEST
+  // ============================================================
+
+  async resubmitRequest(userId: string, requestId: string) {
+    const user = await this.getUserWithEmployee(userId);
+
+    if (!user.employee) {
+      throw new BadRequestException(
+        'Your account is not linked to an employee',
+      );
+    }
+
+    const request = await this.prisma.leaveRequest.findUnique({
+      where: {
+        id: requestId,
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Leave request not found');
+    }
+
+    if (request.employeeId !== user.employee.id) {
+      throw new ForbiddenException(
+        'You can only resubmit your own leave requests',
+      );
+    }
+
+    if (request.status !== LeaveRequestStatus.REJECTED) {
+      throw new BadRequestException(
+        'Only rejected requests can be resubmitted',
+      );
+    }
+
+    if (request.startDate < this.startOfToday()) {
+      throw new BadRequestException(
+        'The leave start date has already passed. Please create a new request.',
+      );
+    }
+
+    await this.checkForOverlappingRequests(
+      request.employeeId,
+      request.startDate,
+      request.endDate,
+      request.id,
+    );
+
+    const updatedRequest = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.leaveRequest.update({
+        where: {
+          id: requestId,
+        },
+        data: {
+          status: LeaveRequestStatus.SUBMITTED,
+          reviewedAt: null,
+          reviewedById: null,
+          rejectionReason: null,
+        },
+      });
+
+      await tx.leaveRequestHistory.create({
+        data: {
+          leaveRequestId: requestId,
+          action: LeaveRequestAction.RESUBMITTED,
+          performedById: user.id,
+          comment: 'Employee resubmitted the rejected leave request',
+        },
+      });
+
+      return updated;
+    });
+
+    return this.getRequestById(userId, updatedRequest.id);
+  }
+
+  // ============================================================
+  // SUBMIT DRAFT
+  // ============================================================
+
+  async submitRequest(userId: string, requestId: string) {
+    const user = await this.getUserWithEmployee(userId);
+
+    if (!user.employee) {
+      throw new BadRequestException(
+        'Your account is not linked to an employee',
+      );
+    }
+
+    const request = await this.prisma.leaveRequest.findUnique({
+      where: {
+        id: requestId,
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Leave request not found');
+    }
+
+    if (request.employeeId !== user.employee.id) {
+      throw new ForbiddenException(
+        'You can only submit your own leave requests',
+      );
+    }
+
+    if (request.status !== LeaveRequestStatus.DRAFT) {
+      throw new BadRequestException('Only draft requests can be submitted');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.leaveRequest.update({
+        where: {
+          id: requestId,
+        },
+        data: {
+          status: LeaveRequestStatus.SUBMITTED,
+        },
+      });
+
+      await tx.leaveRequestHistory.create({
+        data: {
+          leaveRequestId: requestId,
+          action: LeaveRequestAction.SUBMITTED,
+          performedById: user.id,
+          comment: 'Leave request submitted for review',
+        },
+      });
+
+      return result;
+    });
+
+    return this.getRequestById(userId, updated.id);
+  }
+
+  // ============================================================
+  // CANCEL REQUEST
+  // ============================================================
+
+  async cancelRequest(userId: string, requestId: string) {
+    const user = await this.getUserWithEmployee(userId);
+
+    if (!user.employee) {
+      throw new BadRequestException(
+        'Your account is not linked to an employee',
+      );
+    }
+
+    const request = await this.prisma.leaveRequest.findUnique({
+      where: {
+        id: requestId,
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Leave request not found');
+    }
+
+    if (request.employeeId !== user.employee.id) {
+      throw new ForbiddenException(
+        'You can only cancel your own leave requests',
+      );
+    }
+
+    if (
+      request.status !== LeaveRequestStatus.DRAFT &&
+      request.status !== LeaveRequestStatus.SUBMITTED
+    ) {
+      throw new BadRequestException(
+        'Only draft or submitted requests can be cancelled',
+      );
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.leaveRequest.update({
+        where: {
+          id: requestId,
+        },
+        data: {
+          status: LeaveRequestStatus.CANCELLED,
+        },
+      });
+
+      await tx.leaveRequestHistory.create({
+        data: {
+          leaveRequestId: requestId,
+          action: LeaveRequestAction.CANCELLED,
+          performedById: user.id,
+          comment: 'Leave request cancelled by employee',
+        },
+      });
+
+      return result;
+    });
+
+    return this.getRequestById(userId, updated.id);
+  }
+
+  // ============================================================
+  // APPROVE REQUEST
+  // ============================================================
+
+  async approveRequest(userId: string, requestId: string) {
+    const user = await this.getUserWithEmployee(userId);
+
+    const request = await this.prisma.leaveRequest.findUnique({
+      where: {
+        id: requestId,
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            departmentId: true,
+          },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Leave request not found');
+    }
+
+    if (request.status !== LeaveRequestStatus.SUBMITTED) {
+      throw new BadRequestException('Only submitted requests can be approved');
+    }
+
+    await this.ensureCanReviewRequest(user, request.employee.departmentId);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.leaveRequest.update({
+        where: {
+          id: requestId,
+        },
+        data: {
+          status: LeaveRequestStatus.APPROVED,
+          reviewedAt: new Date(),
+          reviewedById: user.id,
+          rejectionReason: null,
+        },
+      });
+
+      await tx.leaveRequestHistory.create({
+        data: {
+          leaveRequestId: requestId,
+          action: LeaveRequestAction.APPROVED,
+          performedById: user.id,
+          comment: 'Leave request approved',
+        },
+      });
+
+      return result;
+    });
+
+    return this.getRequestById(userId, updated.id);
+  }
+
+  // ============================================================
+  // REJECT REQUEST
+  // ============================================================
+
+  async rejectRequest(
+    userId: string,
+    requestId: string,
+    dto: RejectLeaveRequestDto,
+  ) {
+    const user = await this.getUserWithEmployee(userId);
+
+    const request = await this.prisma.leaveRequest.findUnique({
+      where: {
+        id: requestId,
+      },
+      include: {
+        employee: {
+          select: {
+            departmentId: true,
+          },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Leave request not found');
+    }
+
+    if (request.status !== LeaveRequestStatus.SUBMITTED) {
+      throw new BadRequestException('Only submitted requests can be rejected');
+    }
+
+    await this.ensureCanReviewRequest(user, request.employee.departmentId);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.leaveRequest.update({
+        where: {
+          id: requestId,
+        },
+        data: {
+          status: LeaveRequestStatus.REJECTED,
+          reviewedAt: new Date(),
+          reviewedById: user.id,
+          rejectionReason: dto.rejectionReason,
+        },
+      });
+
+      await tx.leaveRequestHistory.create({
+        data: {
+          leaveRequestId: requestId,
+          action: LeaveRequestAction.REJECTED,
+          performedById: user.id,
+          comment: dto.rejectionReason,
+        },
+      });
+
+      return result;
+    });
+
+    return this.getRequestById(userId, updated.id);
+  }
+
+  // ============================================================
+  // GET REQUEST HISTORY
+  // ============================================================
+
+  async getRequestHistory(userId: string, requestId: string) {
+    const user = await this.getUserWithEmployee(userId);
+
+    const request = await this.prisma.leaveRequest.findUnique({
+      where: {
+        id: requestId,
+      },
+      select: {
+        id: true,
+        employeeId: true,
+        employee: {
+          select: {
+            departmentId: true,
+          },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Leave request not found');
+    }
+
+    await this.ensureCanViewRequest(
+      user,
+      request.employeeId,
+      request.employee.departmentId,
+    );
+
+    return this.prisma.leaveRequestHistory.findMany({
+      where: {
+        leaveRequestId: requestId,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+      include: {
+        performedBy: {
+          select: {
+            id: true,
+            username: true,
+            role: true,
+          },
+        },
+      },
+    });
+  }
+
+  // ============================================================
+  // PRIVATE HELPERS
+  // ============================================================
+
+  private async getUserWithEmployee(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        isActive: true,
+        employee: {
+          select: {
+            id: true,
+            employeeId: true,
+            fullName: true,
+            departmentId: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!user.isActive) {
+      throw new ForbiddenException('Your account is inactive');
+    }
+
+    return user;
+  }
+
+  private async ensureCanViewRequest(
+    user: {
+      id: string;
+      role: UserRole;
+      employee: {
+        id: string;
+        departmentId: string;
+      } | null;
+    },
+    requestEmployeeId: string,
+    requestDepartmentId: string,
+  ) {
+    if (user.role === UserRole.ADMIN || user.role === UserRole.HR_USER) {
+      return;
+    }
+
+    if (user.employee && user.employee.id === requestEmployeeId) {
+      return;
+    }
+
+    if (user.role === UserRole.DEPARTMENT_MANAGER) {
+      await this.ensureManagerOfDepartment(
+        user.employee?.id,
+        requestDepartmentId,
+      );
+
+      return;
+    }
+
+    throw new ForbiddenException(
+      'You are not allowed to view this leave request',
+    );
+  }
+
+  private async ensureCanReviewRequest(
+    user: {
+      id: string;
+      role: UserRole;
+      employee: {
+        id: string;
+        departmentId: string;
+      } | null;
+    },
+    requestDepartmentId: string,
+  ) {
+    if (user.role === UserRole.ADMIN || user.role === UserRole.HR_USER) {
+      return;
+    }
+
+    if (user.role !== UserRole.DEPARTMENT_MANAGER) {
+      throw new ForbiddenException(
+        'You are not authorized to review leave requests',
+      );
+    }
+
+    await this.ensureManagerOfDepartment(
+      user.employee?.id,
+      requestDepartmentId,
+    );
+  }
+
+  private async ensureManagerOfDepartment(
+    employeeId: string | undefined,
+    departmentId: string,
+  ) {
+    if (!employeeId) {
+      throw new ForbiddenException('Manager is not linked to an employee');
+    }
+
+    const department = await this.prisma.department.findUnique({
+      where: {
+        id: departmentId,
+      },
+      select: {
+        managerId: true,
+      },
+    });
+
+    if (!department || department.managerId !== employeeId) {
+      throw new ForbiddenException(
+        'You are not the manager of this department',
+      );
+    }
+  }
+
+  private ensureRole(role: UserRole, allowedRoles: UserRole[]) {
+    if (!allowedRoles.includes(role)) {
+      throw new ForbiddenException(
+        'You are not authorized to perform this action',
+      );
+    }
+  }
+
+  private async checkForOverlappingRequests(
+    employeeId: string,
+    startDate: Date,
+    endDate: Date,
+    excludeRequestId?: string,
+  ) {
+    const request = await this.prisma.leaveRequest.findFirst({
+      where: {
+        employeeId,
+
+        status: {
+          in: [
+            LeaveRequestStatus.DRAFT,
+            LeaveRequestStatus.SUBMITTED,
+            LeaveRequestStatus.APPROVED,
+          ],
+        },
+
+        startDate: {
+          lte: endDate,
+        },
+
+        endDate: {
+          gte: startDate,
+        },
+
+        ...(excludeRequestId
+          ? {
+              id: {
+                not: excludeRequestId,
+              },
+            }
+          : {}),
+      },
+    });
+
+    if (request) {
+      throw new ConflictException(
+        `You already have a leave request (${request.requestNumber}) covering part or all of these dates`,
+      );
+    }
+  }
+
+  private calculateLeaveDays(startDate: Date, endDate: Date): number {
+    const difference = endDate.getTime() - startDate.getTime();
+
+    return Math.floor(difference / (1000 * 60 * 60 * 24)) + 1;
+  }
+
+  private normalizeDate(dateString: string): Date {
+    const date = new Date(dateString);
+
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException('Invalid date provided');
+    }
+
+    date.setHours(0, 0, 0, 0);
+
+    return date;
+  }
+
+  private startOfToday(): Date {
+    const today = new Date();
+
+    today.setHours(0, 0, 0, 0);
+
+    return today;
+  }
+
+  private async generateRequestNumber(): Promise<string> {
+    const latest = await this.prisma.leaveRequest.findFirst({
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        requestNumber: true,
+      },
+    });
+
+    if (!latest) {
+      return 'LR-1001';
+    }
+
+    const match = latest.requestNumber.match(/^LR-(\d+)$/);
+
+    if (!match) {
+      return `LR-${Date.now()}`;
+    }
+
+    const nextNumber = Number(match[1]) + 1;
+
+    return `LR-${nextNumber}`;
   }
 }
