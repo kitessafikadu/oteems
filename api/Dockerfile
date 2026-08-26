@@ -7,6 +7,9 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml ./
 
+# Configure pnpm to execute build scripts during installation
+ENV PNPM_ONLY_BUILT_DEPENDENCIES=false
+
 RUN pnpm install --frozen-lockfile
 
 COPY prisma ./prisma
@@ -17,7 +20,7 @@ COPY src ./src
 RUN pnpm exec prisma generate
 RUN pnpm run build
 
-EXPOSE 3000
+EXPOSE 3001
 
 ENV NODE_ENV=production
 
