@@ -1,14 +1,12 @@
 FROM node:22-alpine
 
 RUN apk add --no-cache openssl
+
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml ./
-
-# Configure pnpm to execute build scripts during installation
-ENV PNPM_ONLY_BUILT_DEPENDENCIES=false
 
 RUN pnpm install --frozen-lockfile
 
