@@ -1,4 +1,4 @@
-name: API-CI
+name: API CI
 
 on:
   push:
@@ -10,9 +10,13 @@ on:
       - main
       - develop
 
+defaults:
+  run:
+    working-directory: api
+
 jobs:
   test-and-build:
-    name: Test and Build
+    name: Test and Build API
     runs-on: ubuntu-latest
 
     steps:
@@ -30,6 +34,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          cache-dependency-path: api/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
