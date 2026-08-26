@@ -6,7 +6,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 RUN pnpm install --frozen-lockfile
 
@@ -16,6 +16,7 @@ COPY nest-cli.json tsconfig*.json ./
 COPY src ./src
 
 RUN pnpm exec prisma generate
+
 RUN pnpm run build
 
 EXPOSE 3001
