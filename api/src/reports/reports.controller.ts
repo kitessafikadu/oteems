@@ -1,15 +1,20 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 
 import { ReportsService } from './reports.service';
+import { EmployeeReportDto } from './dto/employee-report.dto';
+import { LeaveReportDto } from './dto/leave-report.dto';
+
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+
 import { UserRole } from '../../generated/prisma/client';
 
 @ApiTags('Reports')
@@ -19,98 +24,82 @@ import { UserRole } from '../../generated/prisma/client';
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
-  @Get('dashboard')
-  @Roles(UserRole.ADMIN, UserRole.HR_USER, UserRole.DEPARTMENT_MANAGER)
-  @ApiOperation({
-    summary: 'Get dashboard summary',
-    description:
-      'Returns employee, department, and leave request statistics. Admin and HR users receive organization-wide statistics. Department managers receive statistics for their own department.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Dashboard statistics returned successfully.',
-  })
-  @ApiResponse({
-    status: 403,
-    description:
-      'Forbidden. The user does not have permission or the department manager is not assigned to a department.',
-  })
-  async getDashboard(@Req() req: any) {
-    return this.reportsService.getDashboard(req.user);
-  }
+  // ============================================================
+  // EMPLOYEE REPORT
+  // ============================================================
 
   @Get('employees')
   @Roles(UserRole.ADMIN, UserRole.HR_USER, UserRole.DEPARTMENT_MANAGER)
   @ApiOperation({
     summary: 'Get employee report',
     description:
-      'Returns employee statistics grouped by employment status. Department managers only see statistics for their own department.',
+      'Returns employee statistics and employee records. Admin and HR users can view all employees. Department managers can only view employees in their own department.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Employee report returned successfully.',
+    description: 'Employee report generated successfully.',
   })
-  async getEmployeeReport(@Req() req: any) {
-    return this.reportsService.getEmployeeReport(req.user);
+  @ApiResponse({
+    status: 403,
+    description: 'Department manager is not assigned to a department.',
+  })
+  async getEmployeeReport(@Req() req: any, @Query() dto: EmployeeReportDto) {
+    return this.reportsService.getEmployeeReport(req.user, dto);
   }
 
-  @Get('employees/by-department')
-  @Roles(UserRole.ADMIN, UserRole.HR_USER, UserRole.DEPARTMENT_MANAGER)
-  @ApiOperation({
-    summary: 'Get employees grouped by department',
-    description:
-      'Returns the number of employees in each department. Department managers only receive their own department.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Employee department statistics returned successfully.',
-  })
-  async getEmployeesByDepartment(@Req() req: any) {
-    return this.reportsService.getEmployeesByDepartment(req.user);
-  }
+  // ============================================================
+  // LEAVE REPORT
+  // ============================================================
 
   @Get('leaves')
   @Roles(UserRole.ADMIN, UserRole.HR_USER, UserRole.DEPARTMENT_MANAGER)
   @ApiOperation({
     summary: 'Get leave request report',
     description:
-      'Returns the total number of leave requests grouped by status. Department managers only see leave requests belonging to employees in their department.',
+      'Returns leave request statistics and leave request records. Department managers can only view requests from employees in their own department.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Leave request report returned successfully.',
+    description: 'Leave report generated successfully.',
   })
-  async getLeaveReport(@Req() req: any) {
-    return this.reportsService.getLeaveReport(req.user);
+  async getLeaveReport(@Req() req: any, @Query() dto: LeaveReportDto) {
+    return this.reportsService.getLeaveReport(req.user, dto);
   }
+
+  // ============================================================
+  // LEAVE REPORT BY TYPE
+  // ============================================================
 
   @Get('leaves/by-type')
   @Roles(UserRole.ADMIN, UserRole.HR_USER, UserRole.DEPARTMENT_MANAGER)
   @ApiOperation({
-    summary: 'Get leave requests grouped by type',
-    description:
-      'Returns leave request counts and total leave days for each leave type. Department managers only see their department data.',
+    summary: 'Get leave report grouped by leave type',
+    description: 'Returns the number of leave requests grouped by leave type.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Leave type statistics returned successfully.',
+    description: 'Leave type report generated successfully.',
   })
-  async getLeavesByType(@Req() req: any) {
-    return this.reportsService.getLeavesByType(req.user);
+  async getLeavesByType(@Req() req: any, @Query() dto: LeaveReportDto) {
+    return this.reportsService.getLeavesByType(req.user, dto);
   }
+
+  // ============================================================
+  // LEAVE REPORT BY DEPARTMENT
+  // ============================================================
 
   @Get('leaves/by-department')
   @Roles(UserRole.ADMIN, UserRole.HR_USER, UserRole.DEPARTMENT_MANAGER)
   @ApiOperation({
-    summary: 'Get leave requests grouped by department',
+    summary: 'Get leave report grouped by department',
     description:
-      'Returns leave request counts and total leave days for each department. Department managers only receive statistics for their own department.',
+      'Returns leave request statistics grouped by department. Department managers only receive data for their own department.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Leave department statistics returned successfully.',
+    description: 'Department leave report generated successfully.',
   })
-  async getLeavesByDepartment(@Req() req: any) {
-    return this.reportsService.getLeavesByDepartment(req.user);
+  async getLeavesByDepartment(@Req() req: any, @Query() dto: LeaveReportDto) {
+    return this.reportsService.getLeavesByDepartment(req.user, dto);
   }
 }

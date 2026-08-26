@@ -1,8 +1,5 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
+
 import {
   EmploymentStatus,
   LeaveRequestStatus,
@@ -10,217 +7,65 @@ import {
   Prisma,
   UserRole,
 } from '../../generated/prisma/client';
+
 import { PrismaService } from '../prisma/prisma.service';
 
-interface AuthenticatedUser {
-  id: string;
-  username: string;
-  role: UserRole;
-  employeeId?: string;
-}
+import { EmployeeReportDto } from './dto/employee-report.dto';
+import { LeaveReportDto } from './dto/leave-report.dto';
 
 @Injectable()
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Get the department ID for a department manager.
-   */
-  private async getManagerDepartmentId(
-    user: AuthenticatedUser,
-  ): Promise<string> {
-    if (!user.employeeId) {
-      throw new ForbiddenException(
-        'Department manager is not assigned to an employee',
-      );
-    }
+  // ============================================================
+  // EMPLOYEE REPORT
+  // ============================================================
 
-    const employee = await this.prisma.employee.findUnique({
-      where: {
-        id: user.employeeId,
-      },
-      select: {
-        departmentId: true,
-        managedDepartment: {
-          select: {
-            id: true,
-          },
-        },
-      },
-    });
-
-    if (!employee) {
-      throw new NotFoundException('Employee profile not found');
-    }
-
-    if (!employee.managedDepartment) {
-      throw new ForbiddenException(
-        'Department manager is not assigned to a department',
-      );
-    }
-
-    return employee.managedDepartment.id;
-  }
-
-  /**
-   * Returns the department scope for the current user.
-   *
-   * ADMIN and HR_USER:
-   *     All departments.
-   *
-   * DEPARTMENT_MANAGER:
-   *     Own department only.
-   */
-  private async getDepartmentScope(
-    user: AuthenticatedUser,
-  ): Promise<string | undefined> {
-    if (user.role === UserRole.ADMIN || user.role === UserRole.HR_USER) {
-      return undefined;
-    }
-
-    if (user.role === UserRole.DEPARTMENT_MANAGER) {
-      return this.getManagerDepartmentId(user);
-    }
-
-    throw new ForbiddenException(
-      'You do not have permission to access reports',
+  async getEmployeeReport(user: any, dto: EmployeeReportDto) {
+    const departmentId = await this.getEffectiveDepartmentId(
+      user,
+      dto.departmentId,
     );
-  }
 
-  /**
-   * Dashboard summary.
-   */
-  async getDashboard(user: AuthenticatedUser) {
-    const departmentId = await this.getDepartmentScope(user);
-
-    const employeeWhere: Prisma.EmployeeWhereInput = departmentId
-      ? { departmentId }
-      : {};
-
-    const leaveWhere: Prisma.LeaveRequestWhereInput = departmentId
-      ? {
-          employee: {
+    const where: Prisma.EmployeeWhereInput = {
+      ...(departmentId
+        ? {
             departmentId,
-          },
-        }
-      : {};
+          }
+        : {}),
+
+      ...(dto.status
+        ? {
+            status: dto.status,
+          }
+        : {}),
+
+      ...(dto.startDate || dto.endDate
+        ? {
+            hireDate: {
+              ...(dto.startDate
+                ? {
+                    gte: new Date(dto.startDate),
+                  }
+                : {}),
+
+              ...(dto.endDate
+                ? {
+                    lte: this.endOfDay(dto.endDate),
+                  }
+                : {}),
+            },
+          }
+        : {}),
+    };
 
     const [
       totalEmployees,
       activeEmployees,
       inactiveEmployees,
       terminatedEmployees,
-      totalLeaveRequests,
-      draftLeaveRequests,
-      submittedLeaveRequests,
-      approvedLeaveRequests,
-      rejectedLeaveRequests,
-      cancelledLeaveRequests,
-      totalDepartments,
+      employees,
     ] = await Promise.all([
-      this.prisma.employee.count({
-        where: employeeWhere,
-      }),
-
-      this.prisma.employee.count({
-        where: {
-          ...employeeWhere,
-          status: EmploymentStatus.ACTIVE,
-        },
-      }),
-
-      this.prisma.employee.count({
-        where: {
-          ...employeeWhere,
-          status: EmploymentStatus.INACTIVE,
-        },
-      }),
-
-      this.prisma.employee.count({
-        where: {
-          ...employeeWhere,
-          status: EmploymentStatus.TERMINATED,
-        },
-      }),
-
-      this.prisma.leaveRequest.count({
-        where: leaveWhere,
-      }),
-
-      this.prisma.leaveRequest.count({
-        where: {
-          ...leaveWhere,
-          status: LeaveRequestStatus.DRAFT,
-        },
-      }),
-
-      this.prisma.leaveRequest.count({
-        where: {
-          ...leaveWhere,
-          status: LeaveRequestStatus.SUBMITTED,
-        },
-      }),
-
-      this.prisma.leaveRequest.count({
-        where: {
-          ...leaveWhere,
-          status: LeaveRequestStatus.APPROVED,
-        },
-      }),
-
-      this.prisma.leaveRequest.count({
-        where: {
-          ...leaveWhere,
-          status: LeaveRequestStatus.REJECTED,
-        },
-      }),
-
-      this.prisma.leaveRequest.count({
-        where: {
-          ...leaveWhere,
-          status: LeaveRequestStatus.CANCELLED,
-        },
-      }),
-
-      departmentId ? Promise.resolve(1) : this.prisma.department.count(),
-    ]);
-
-    return {
-      scope: departmentId ? 'OWN_DEPARTMENT' : 'ALL_DEPARTMENTS',
-
-      employees: {
-        total: totalEmployees,
-        active: activeEmployees,
-        inactive: inactiveEmployees,
-        terminated: terminatedEmployees,
-      },
-
-      leaveRequests: {
-        total: totalLeaveRequests,
-        draft: draftLeaveRequests,
-        submitted: submittedLeaveRequests,
-        approved: approvedLeaveRequests,
-        rejected: rejectedLeaveRequests,
-        cancelled: cancelledLeaveRequests,
-      },
-
-      departments: {
-        total: totalDepartments,
-      },
-    };
-  }
-
-  /**
-   * Employee report.
-   */
-  async getEmployeeReport(user: AuthenticatedUser) {
-    const departmentId = await this.getDepartmentScope(user);
-
-    const where: Prisma.EmployeeWhereInput = departmentId
-      ? { departmentId }
-      : {};
-
-    const [total, active, inactive, terminated] = await Promise.all([
       this.prisma.employee.count({
         where,
       }),
@@ -245,265 +90,420 @@ export class ReportsService {
           status: EmploymentStatus.TERMINATED,
         },
       }),
+
+      this.prisma.employee.findMany({
+        where,
+        select: {
+          id: true,
+          employeeId: true,
+          fullName: true,
+          phone: true,
+          email: true,
+          position: true,
+          hireDate: true,
+          status: true,
+
+          department: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+
+          user: {
+            select: {
+              id: true,
+              username: true,
+              role: true,
+              isActive: true,
+            },
+          },
+        },
+
+        orderBy: {
+          fullName: 'asc',
+        },
+      }),
     ]);
 
     return {
-      scope: departmentId ? 'OWN_DEPARTMENT' : 'ALL_DEPARTMENTS',
-      total,
-      active,
-      inactive,
-      terminated,
+      summary: {
+        totalEmployees,
+        activeEmployees,
+        inactiveEmployees,
+        terminatedEmployees,
+      },
+
+      employees,
     };
   }
 
-  /**
-   * Employee count grouped by department.
-   */
-  async getEmployeesByDepartment(user: AuthenticatedUser) {
-    const departmentId = await this.getDepartmentScope(user);
+  // ============================================================
+  // LEAVE REPORT
+  // ============================================================
 
-    const where: Prisma.EmployeeWhereInput = departmentId
-      ? { departmentId }
-      : {};
+  async getLeaveReport(user: any, dto: LeaveReportDto) {
+    const departmentId = await this.getEffectiveDepartmentId(
+      user,
+      dto.departmentId,
+    );
 
-    const grouped = await this.prisma.employee.groupBy({
-      by: ['departmentId'],
+    const where = this.buildLeaveWhere(departmentId, dto);
+
+    const [
+      totalRequests,
+      draftRequests,
+      submittedRequests,
+      approvedRequests,
+      rejectedRequests,
+      cancelledRequests,
+      totalLeaveDays,
+      requests,
+    ] = await Promise.all([
+      this.prisma.leaveRequest.count({
+        where,
+      }),
+
+      this.prisma.leaveRequest.count({
+        where: {
+          ...where,
+          status: LeaveRequestStatus.DRAFT,
+        },
+      }),
+
+      this.prisma.leaveRequest.count({
+        where: {
+          ...where,
+          status: LeaveRequestStatus.SUBMITTED,
+        },
+      }),
+
+      this.prisma.leaveRequest.count({
+        where: {
+          ...where,
+          status: LeaveRequestStatus.APPROVED,
+        },
+      }),
+
+      this.prisma.leaveRequest.count({
+        where: {
+          ...where,
+          status: LeaveRequestStatus.REJECTED,
+        },
+      }),
+
+      this.prisma.leaveRequest.count({
+        where: {
+          ...where,
+          status: LeaveRequestStatus.CANCELLED,
+        },
+      }),
+
+      this.getTotalLeaveDays(where),
+
+      this.prisma.leaveRequest.findMany({
+        where,
+
+        select: {
+          id: true,
+          requestNumber: true,
+          leaveType: true,
+          startDate: true,
+          endDate: true,
+          leaveDays: true,
+          reason: true,
+          status: true,
+          reviewedAt: true,
+          rejectionReason: true,
+          createdAt: true,
+
+          employee: {
+            select: {
+              id: true,
+              employeeId: true,
+              fullName: true,
+              email: true,
+
+              department: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+
+          reviewer: {
+            select: {
+              id: true,
+              username: true,
+              role: true,
+            },
+          },
+        },
+
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+    ]);
+
+    return {
+      summary: {
+        totalRequests,
+        draftRequests,
+        submittedRequests,
+        approvedRequests,
+        rejectedRequests,
+        cancelledRequests,
+        totalLeaveDays,
+      },
+
+      requests,
+    };
+  }
+
+  // ============================================================
+  // LEAVE REPORT BY TYPE
+  // ============================================================
+
+  async getLeavesByType(user: any, dto: LeaveReportDto) {
+    const departmentId = await this.getEffectiveDepartmentId(
+      user,
+      dto.departmentId,
+    );
+
+    const where = this.buildLeaveWhere(departmentId, dto);
+
+    const results = await this.prisma.leaveRequest.groupBy({
+      by: ['leaveType'],
       where,
+
       _count: {
         id: true,
       },
-    });
 
-    const departmentIds = grouped.map((item) => item.departmentId);
-
-    const departments = await this.prisma.department.findMany({
-      where: {
-        id: {
-          in: departmentIds,
-        },
+      _sum: {
+        leaveDays: true,
       },
-      select: {
-        id: true,
-        name: true,
+
+      orderBy: {
+        leaveType: 'asc',
       },
     });
 
-    const departmentMap = new Map(
-      departments.map((department) => [department.id, department.name]),
-    );
-
-    return grouped.map((item) => ({
-      departmentId: item.departmentId,
-      departmentName: departmentMap.get(item.departmentId) ?? 'Unknown',
-      employeeCount: item._count.id,
+    return results.map((item) => ({
+      leaveType: item.leaveType,
+      requestCount: item._count.id,
+      totalLeaveDays: item._sum.leaveDays ?? 0,
     }));
   }
 
-  /**
-   * Leave request report.
-   */
-  async getLeaveReport(user: AuthenticatedUser) {
-    const departmentId = await this.getDepartmentScope(user);
+  // ============================================================
+  // LEAVE REPORT BY DEPARTMENT
+  // ============================================================
 
-    const where: Prisma.LeaveRequestWhereInput = departmentId
-      ? {
-          employee: {
-            departmentId,
-          },
-        }
-      : {};
-
-    const [total, draft, submitted, approved, rejected, cancelled] =
-      await Promise.all([
-        this.prisma.leaveRequest.count({
-          where,
-        }),
-
-        this.prisma.leaveRequest.count({
-          where: {
-            ...where,
-            status: LeaveRequestStatus.DRAFT,
-          },
-        }),
-
-        this.prisma.leaveRequest.count({
-          where: {
-            ...where,
-            status: LeaveRequestStatus.SUBMITTED,
-          },
-        }),
-
-        this.prisma.leaveRequest.count({
-          where: {
-            ...where,
-            status: LeaveRequestStatus.APPROVED,
-          },
-        }),
-
-        this.prisma.leaveRequest.count({
-          where: {
-            ...where,
-            status: LeaveRequestStatus.REJECTED,
-          },
-        }),
-
-        this.prisma.leaveRequest.count({
-          where: {
-            ...where,
-            status: LeaveRequestStatus.CANCELLED,
-          },
-        }),
-      ]);
-
-    return {
-      scope: departmentId ? 'OWN_DEPARTMENT' : 'ALL_DEPARTMENTS',
-
-      total,
-
-      byStatus: {
-        draft,
-        submitted,
-        approved,
-        rejected,
-        cancelled,
-      },
-    };
-  }
-
-  /**
-   * Leave requests grouped by leave type.
-   */
-  async getLeavesByType(user: AuthenticatedUser) {
-    const departmentId = await this.getDepartmentScope(user);
-
-    const where: Prisma.LeaveRequestWhereInput = departmentId
-      ? {
-          employee: {
-            departmentId,
-          },
-        }
-      : {};
-
-    const grouped = await this.prisma.leaveRequest.groupBy({
-      by: ['leaveType'],
-      where,
-      _count: {
-        id: true,
-      },
-      _sum: {
-        leaveDays: true,
-      },
-    });
-
-    const result = Object.values(LeaveType).map((leaveType) => {
-      const item = grouped.find((group) => group.leaveType === leaveType);
-
-      return {
-        leaveType,
-        requestCount: item?._count.id ?? 0,
-        totalLeaveDays: item?._sum.leaveDays ?? 0,
-      };
-    });
-
-    return {
-      scope: departmentId ? 'OWN_DEPARTMENT' : 'ALL_DEPARTMENTS',
-      data: result,
-    };
-  }
-
-  /**
-   * Leave requests grouped by department.
-   */
-  async getLeavesByDepartment(user: AuthenticatedUser) {
-    const departmentId = await this.getDepartmentScope(user);
-
-    const where: Prisma.LeaveRequestWhereInput = departmentId
-      ? {
-          employee: {
-            departmentId,
-          },
-        }
-      : {};
-
-    const grouped = await this.prisma.leaveRequest.groupBy({
-      by: ['employeeId'],
-      where,
-      _count: {
-        id: true,
-      },
-      _sum: {
-        leaveDays: true,
-      },
-    });
-
-    const employeeIds = grouped.map((item) => item.employeeId);
-
-    const employees = await this.prisma.employee.findMany({
-      where: {
-        id: {
-          in: employeeIds,
-        },
-      },
-      select: {
-        id: true,
-        departmentId: true,
-      },
-    });
-
-    const employeeMap = new Map(
-      employees.map((employee) => [employee.id, employee.departmentId]),
+  async getLeavesByDepartment(user: any, dto: LeaveReportDto) {
+    const departmentId = await this.getEffectiveDepartmentId(
+      user,
+      dto.departmentId,
     );
 
-    const departmentStats = new Map<
+    const where = this.buildLeaveWhere(departmentId, dto);
+
+    const requests = await this.prisma.leaveRequest.findMany({
+      where,
+
+      select: {
+        leaveDays: true,
+
+        employee: {
+          select: {
+            department: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const departmentMap = new Map<
       string,
       {
+        departmentId: string;
+        departmentName: string;
         requestCount: number;
         totalLeaveDays: number;
       }
     >();
 
-    for (const item of grouped) {
-      const employeeDepartmentId = employeeMap.get(item.employeeId);
+    for (const request of requests) {
+      const department = request.employee.department;
 
-      if (!employeeDepartmentId) {
-        continue;
-      }
-
-      const existing = departmentStats.get(employeeDepartmentId);
+      const existing = departmentMap.get(department.id);
 
       if (existing) {
-        existing.requestCount += item._count.id;
-        existing.totalLeaveDays += item._sum.leaveDays ?? 0;
+        existing.requestCount += 1;
+        existing.totalLeaveDays += request.leaveDays;
       } else {
-        departmentStats.set(employeeDepartmentId, {
-          requestCount: item._count.id,
-          totalLeaveDays: item._sum.leaveDays ?? 0,
+        departmentMap.set(department.id, {
+          departmentId: department.id,
+          departmentName: department.name,
+          requestCount: 1,
+          totalLeaveDays: request.leaveDays,
         });
       }
     }
 
-    const departments = await this.prisma.department.findMany({
-      where: {
-        id: {
-          in: Array.from(departmentStats.keys()),
-        },
-      },
-      select: {
-        id: true,
-        name: true,
+    return Array.from(departmentMap.values()).sort((a, b) =>
+      a.departmentName.localeCompare(b.departmentName),
+    );
+  }
+
+  // ============================================================
+  // BUILD LEAVE WHERE
+  // ============================================================
+
+  private buildLeaveWhere(
+    departmentId: string | undefined,
+    dto: LeaveReportDto,
+  ): Prisma.LeaveRequestWhereInput {
+    return {
+      ...(departmentId
+        ? {
+            employee: {
+              departmentId,
+            },
+          }
+        : {}),
+
+      ...(dto.leaveType
+        ? {
+            leaveType: dto.leaveType,
+          }
+        : {}),
+
+      ...(dto.status
+        ? {
+            status: dto.status,
+          }
+        : {}),
+
+      ...(dto.startDate || dto.endDate
+        ? {
+            startDate: {
+              ...(dto.startDate
+                ? {
+                    gte: new Date(dto.startDate),
+                  }
+                : {}),
+
+              ...(dto.endDate
+                ? {
+                    lte: this.endOfDay(dto.endDate),
+                  }
+                : {}),
+            },
+          }
+        : {}),
+    };
+  }
+
+  // ============================================================
+  // TOTAL LEAVE DAYS
+  // ============================================================
+
+  private async getTotalLeaveDays(
+    where: Prisma.LeaveRequestWhereInput,
+  ): Promise<number> {
+    const result = await this.prisma.leaveRequest.aggregate({
+      where,
+
+      _sum: {
+        leaveDays: true,
       },
     });
 
-    const departmentMap = new Map(
-      departments.map((department) => [department.id, department.name]),
-    );
+    return result._sum.leaveDays ?? 0;
+  }
 
-    return Array.from(departmentStats.entries()).map(
-      ([departmentId, stats]) => ({
-        departmentId,
-        departmentName: departmentMap.get(departmentId) ?? 'Unknown',
-        ...stats,
-      }),
-    );
+  // ============================================================
+  // DEPARTMENT SCOPE
+  // ============================================================
+
+  private async getEffectiveDepartmentId(
+    user: any,
+    requestedDepartmentId?: string,
+  ): Promise<string | undefined> {
+    // Admin and HR can access all departments,
+    // unless they explicitly filter by department.
+    if (user.role === UserRole.ADMIN || user.role === UserRole.HR_USER) {
+      return requestedDepartmentId;
+    }
+
+    // Department manager must always be restricted
+    // to their own department.
+    if (user.role === UserRole.DEPARTMENT_MANAGER) {
+      if (!user.employeeId) {
+        throw new ForbiddenException(
+          'Department manager is not assigned to an employee',
+        );
+      }
+
+      const employee = await this.prisma.employee.findUnique({
+        where: {
+          id: user.employeeId,
+        },
+
+        select: {
+          departmentId: true,
+          managedDepartment: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+
+      if (!employee) {
+        throw new ForbiddenException('Employee profile not found');
+      }
+
+      if (!employee.managedDepartment) {
+        throw new ForbiddenException(
+          'Department manager is not assigned to a department',
+        );
+      }
+
+      // Do not allow the manager to select
+      // another department.
+      if (
+        requestedDepartmentId &&
+        requestedDepartmentId !== employee.departmentId
+      ) {
+        throw new ForbiddenException(
+          'You can only access reports for your own department',
+        );
+      }
+
+      return employee.departmentId;
+    }
+
+    return undefined;
+  }
+
+  // ============================================================
+  // DATE HELPER
+  // ============================================================
+
+  private endOfDay(date: string): Date {
+    const result = new Date(date);
+
+    result.setHours(23, 59, 59, 999);
+
+    return result;
   }
 }
