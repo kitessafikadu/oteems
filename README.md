@@ -5,6 +5,7 @@ A full-stack **Employee Management System** developed as a pre-employment assess
 The system centralizes employee information and digitizes the employee leave request and approval process, replacing fragmented manual processes with a structured and traceable workflow.
 
 ## Overview
+
 The Employee Management System provides a centralized platform for:
 
 - Managing employee records
@@ -173,7 +174,6 @@ employee-management-system/
 │   ├── src/
 │   │   ├── auth/
 │   │   ├── employees/
-│   │   ├── departments/
 │   │   ├── requests/
 │   │   ├── reports/
 │   │   ├── admin/
@@ -419,7 +419,6 @@ The project will be developed in the following order:
        ↓
 14. Deployment
 ```
-
 
 ## License
 

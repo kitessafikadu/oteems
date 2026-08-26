@@ -305,7 +305,7 @@ export default function Home() {
               {features.map((feature) => (
                 <div
                   key={feature.number}
-                  className="border-b border-black/10 py-8 sm:px-6 sm:nth-[2n+1]:border-r"
+                  className="border-b border-black/10 py-8 sm:px-6"
                 >
                   <span className="text-xs font-medium text-oteems-red">
                     {feature.number}
