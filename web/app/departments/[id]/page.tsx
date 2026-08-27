@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getDepartment,
+  updateDepartment,
   assignDepartmentManager,
   removeDepartmentManager,
   getUsers,
@@ -23,6 +24,11 @@ export default function DepartmentDetailPage() {
   const [department, setDepartment] = useState<Department | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Manager modal state
   const [showManagerModal, setShowManagerModal] = useState(false);
@@ -49,6 +55,7 @@ export default function DepartmentDetailPage() {
       getDepartment(id as string)
         .then((data) => {
           setDepartment(data);
+          setEditName(data.name);
           setSelectedManagerId(data.managerId || "");
         })
         .catch((err: unknown) => {
@@ -64,15 +71,40 @@ export default function DepartmentDetailPage() {
     }
   }, [id, user, router]);
 
+  // Edit modal handlers
+  const openEditModal = () => {
+    if (department) {
+      setEditName(department.name);
+      setShowEditModal(true);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!department || !editName.trim()) return;
+    setSavingEdit(true);
+    try {
+      const updated = await updateDepartment(department.id, {
+        name: editName.trim(),
+      });
+      setDepartment(updated);
+      setShowEditModal(false);
+    } catch (err: unknown) {
+      const error = err as { status?: number; message?: string };
+      setError(error?.message || "Failed to update department.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // Manager modal handlers
   const openManagerModal = async () => {
-    // Fetch all users to choose a manager (or filter by role DEPARTMENT_MANAGER if backend supports)
     try {
       const users = await getUsers();
-      // Filter only those who are employees or department managers (not admins/hr maybe)
       const filtered = users.filter(
         (u) => u.role === "EMPLOYEE" || u.role === "DEPARTMENT_MANAGER",
       );
       setManagerCandidates(filtered);
+      setSelectedManagerId(department?.managerId || "");
       setShowManagerModal(true);
     } catch (err: unknown) {
       const error = err as { status?: number; message?: string };
@@ -81,32 +113,22 @@ export default function DepartmentDetailPage() {
   };
 
   const handleAssignManager = async () => {
-    if (!selectedManagerId || !department) return;
+    if (!department) return;
     setUpdatingManager(true);
     try {
-      const updated = await assignDepartmentManager(department.id, {
-        managerId: selectedManagerId,
-      });
+      let updated: Department;
+      if (selectedManagerId) {
+        updated = await assignDepartmentManager(department.id, {
+          managerId: selectedManagerId,
+        });
+      } else {
+        updated = await removeDepartmentManager(department.id);
+      }
       setDepartment(updated);
       setShowManagerModal(false);
     } catch (err: unknown) {
       const error = err as { status?: number; message?: string };
-      setError(error?.message || "Failed to assign manager.");
-    } finally {
-      setUpdatingManager(false);
-    }
-  };
-
-  const handleRemoveManager = async () => {
-    if (!department) return;
-    setUpdatingManager(true);
-    try {
-      const updated = await removeDepartmentManager(department.id);
-      setDepartment(updated);
-      setSelectedManagerId("");
-    } catch (err: unknown) {
-      const error = err as { status?: number; message?: string };
-      setError(error?.message || "Failed to remove manager.");
+      setError(error?.message || "Failed to update manager.");
     } finally {
       setUpdatingManager(false);
     }
@@ -147,12 +169,12 @@ export default function DepartmentDetailPage() {
                 </h2>
               </div>
               <div className="flex gap-3">
-                <Link
-                  href={`/departments/${department.id}/edit`}
+                <button
+                  onClick={openEditModal}
                   className="rounded-lg bg-oteems-black px-4 py-2.5 text-xs font-semibold text-white hover:bg-black"
                 >
                   Edit
-                </Link>
+                </button>
                 <button
                   onClick={openManagerModal}
                   className="rounded-lg border border-black/10 px-4 py-2.5 text-xs font-semibold text-black/60 hover:border-oteems-red hover:text-oteems-red"
@@ -243,6 +265,46 @@ export default function DepartmentDetailPage() {
         </main>
       </div>
 
+      {/* Edit Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6">
+            <h3 className="text-lg font-bold">Edit Department</h3>
+            <p className="mt-1 text-sm text-black/45">
+              Update the department name.
+            </p>
+
+            <div className="mt-4">
+              <label className="mb-2 block text-xs font-semibold">
+                Department Name
+              </label>
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="h-11 w-full rounded-lg border border-black/15 px-4 text-sm outline-none focus:border-oteems-red"
+              />
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="rounded-lg border border-black/10 px-4 py-2.5 text-xs font-semibold text-black/60 hover:bg-black/[0.04]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={savingEdit || !editName.trim()}
+                className="rounded-lg bg-oteems-red px-4 py-2.5 text-xs font-semibold text-white hover:bg-oteems-red-dark disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingEdit ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Manager Modal */}
       {showManagerModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -282,7 +344,7 @@ export default function DepartmentDetailPage() {
                 disabled={updatingManager}
                 className="rounded-lg bg-oteems-red px-4 py-2.5 text-xs font-semibold text-white hover:bg-oteems-red-dark disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {updatingManager ? "Saving..." : "Assign Manager"}
+                {updatingManager ? "Saving..." : "Save Manager"}
               </button>
             </div>
           </div>
