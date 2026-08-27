@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Headers,
   Get,
   Patch,
   Post,
@@ -44,5 +45,19 @@ export class AuthController {
       dto.currentPassword,
       dto.newPassword,
     );
+  }
+
+  @Post('logout')
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  async logout(
+    @Req() request: AuthenticatedRequest,
+    @Headers('authorization') authorization: string,
+  ) {
+    const token = authorization?.split(' ')[1];
+    if (token) {
+      await this.authService.blacklistToken(token);
+    }
+    return { message: 'Logged out successfully' };
   }
 }

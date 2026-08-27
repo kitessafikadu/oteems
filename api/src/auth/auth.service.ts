@@ -122,4 +122,23 @@ export class AuthService {
 
     return { message: 'Password changed successfully' };
   }
+  async blacklistToken(token: string) {
+    const decoded = this.jwtService.decode(token) as { exp?: number } | null;
+    if (!decoded?.exp) return;
+
+    const expiresAt = new Date(decoded.exp * 1000);
+    await this.prisma.tokenBlacklist.create({
+      data: {
+        token,
+        expiresAt,
+      },
+    });
+  }
+
+  async isTokenBlacklisted(token: string): Promise<boolean> {
+    const record = await this.prisma.tokenBlacklist.findUnique({
+      where: { token },
+    });
+    return !!record;
+  }
 }

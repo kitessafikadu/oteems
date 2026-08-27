@@ -61,14 +61,11 @@ model User {
   role         UserRole
   isActive     Boolean  @default(true)
 
-  // Link account to employee
   employeeId String?   @unique
   employee   Employee? @relation(fields: [employeeId], references: [id])
 
-  // Leave requests reviewed by this user
   reviewedLeaveRequests LeaveRequest[] @relation("LeaveRequestReviewer")
 
-  // Leave request history actions performed by this user
   leaveRequestHistory LeaveRequestHistory[]
 
   createdAt DateTime @default(now())
@@ -86,11 +83,9 @@ model Department {
   id        String  @id @default(uuid())
   name      String  @unique
 
-  // Employee who manages this department
   managerId String?   @unique
   manager   Employee? @relation("DepartmentManager", fields: [managerId], references: [id])
 
-  // Employees belonging to this department
   employees Employee[] @relation("DepartmentEmployees")
 
   createdAt DateTime @default(now())
@@ -125,17 +120,12 @@ model Employee {
 
   status EmploymentStatus @default(ACTIVE)
 
-  // Department
   departmentId String
   department   Department @relation("DepartmentEmployees", fields: [departmentId], references: [id])
 
-  // Login account
   user User?
 
-  // Employee leave requests
   leaveRequests LeaveRequest[]
-
-  // Department managed by this employee
   managedDepartment Department? @relation("DepartmentManager")
 
   createdAt DateTime @default(now())
@@ -154,11 +144,9 @@ model LeaveRequest {
   id            String @id @default(uuid())
   requestNumber String @unique
 
-  // Employee requesting leave
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id])
 
-  // Leave information
   leaveType LeaveType
 
   startDate DateTime
@@ -167,17 +155,14 @@ model LeaveRequest {
 
   reason String
 
-  // Current workflow status
   status LeaveRequestStatus @default(DRAFT)
 
-  // Latest review information
   reviewedAt   DateTime?
   reviewedById String?
   reviewer     User? @relation("LeaveRequestReviewer", fields: [reviewedById], references: [id])
 
   rejectionReason String?
 
-  // Complete request history
   history LeaveRequestHistory[]
 
   createdAt DateTime @default(now())
@@ -197,18 +182,13 @@ model LeaveRequest {
 model LeaveRequestHistory {
   id String @id @default(uuid())
 
-  // Request associated with this history record
   leaveRequestId String
   leaveRequest   LeaveRequest @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
 
-  // What happened
   action LeaveRequestAction
 
-  // User who performed the action
   performedById String
   performedBy   User @relation(fields: [performedById], references: [id])
-
-  // Optional comment/reason
   comment String?
 
   createdAt DateTime @default(now())
@@ -216,4 +196,13 @@ model LeaveRequestHistory {
   @@index([leaveRequestId])
   @@index([performedById])
   @@index([action])
+}
+
+model TokenBlacklist {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }
