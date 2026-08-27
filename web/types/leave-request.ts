@@ -20,6 +20,8 @@ export type LeaveRequest = {
   startDate: string;
   endDate: string;
   reason?: string;
+  requestNumber?: string;
+  leaveDays?: number;
   status: LeaveRequestStatus;
   createdAt: string;
   updatedAt: string;

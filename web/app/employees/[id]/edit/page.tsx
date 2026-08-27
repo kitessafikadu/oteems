@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { getEmployee, updateEmployee } from "@/lib/api/employees";
 import type { Employee } from "@/types/employee";
 import { getMe } from "@/lib/api/auth";
+import { getDepartments } from "@/lib/api/admin";
+import type { Department } from "@/types/department";
 import type { AuthUser } from "@/types/auth";
 import { removeAccessToken } from "@/lib/auth";
 import { Sidebar } from "@/components/dashboard/sidebar";
@@ -14,6 +16,7 @@ export default function EditEmployeePage() {
   const { id } = useParams();
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [form, setForm] = useState({
     fullName: "",
     phone: "",
@@ -37,6 +40,10 @@ export default function EditEmployeePage() {
         removeAccessToken();
         router.replace("/login");
       });
+
+    getDepartments()
+      .then((data: Department[]) => setDepartments(data))
+      .catch(() => setError("Failed to load departments."));
   }, [router]);
 
   useEffect(() => {
@@ -48,7 +55,7 @@ export default function EditEmployeePage() {
             phone: emp.phone || "",
             email: emp.email,
             position: emp.position || "",
-            departmentId: emp.departmentId,
+            departmentId: emp.departmentId || "",
           });
           setLoading(false);
         })
@@ -170,7 +177,11 @@ export default function EditEmployeePage() {
                     className="h-11 w-full rounded-lg border border-black/15 px-4 text-sm outline-none focus:border-oteems-red"
                   >
                     <option value="">Select department</option>
-                    {/* Fetch departments here */}
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>

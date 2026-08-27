@@ -115,6 +115,23 @@ export class EmployeesService {
             updatedAt: true,
           },
         },
+
+        leaveRequests: {
+          select: {
+            id: true,
+            requestNumber: true,
+            leaveType: true,
+            startDate: true,
+            endDate: true,
+            leaveDays: true,
+            status: true,
+            reason: true,
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
       },
     });
 

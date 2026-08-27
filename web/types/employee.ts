@@ -1,4 +1,5 @@
 export type EmploymentStatus = "ACTIVE" | "INACTIVE" | "TERMINATED";
+import type { LeaveRequest } from "./leave-request";
 
 export type Employee = {
   id: string;
@@ -10,6 +11,8 @@ export type Employee = {
   hireDate: string;
   status: EmploymentStatus;
   departmentId: string;
+  leaveRequests?: LeaveRequest[];
+
   department: {
     id: string;
     name: string;

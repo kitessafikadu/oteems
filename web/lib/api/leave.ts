@@ -3,7 +3,7 @@ import type {
   CreateLeaveRequestPayload,
   LeaveRequest,
   UpdateLeaveRequestPayload,
-} from "@/types/leave";
+} from "@/types/leave-request";
 
 export function createLeaveRequest(payload: CreateLeaveRequestPayload) {
   return api<LeaveRequest>("/requests", {
