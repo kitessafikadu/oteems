@@ -245,53 +245,59 @@ export default function EmployeeDetailPage() {
               )}
             </div>
 
-            {/* Leave Requests */}
-            {employee.leaveRequests && employee.leaveRequests.length > 0 && (
+            {/* Leave Requests – THIS IS THE IMPORTANT PART */}
+            {employee.leaveRequests && (
               <div className="mt-6">
                 <h3 className="text-lg font-bold tracking-tight">
                   Leave Requests
                 </h3>
-                <div className="mt-3 overflow-hidden rounded-xl border border-black/10 bg-white">
-                  <table className="w-full text-left text-sm">
-                    <thead className="border-b border-black/10 bg-black/[0.02]">
-                      <tr>
-                        <th className="px-4 py-3 font-semibold">Request #</th>
-                        <th className="px-4 py-3 font-semibold">Type</th>
-                        <th className="px-4 py-3 font-semibold">Start</th>
-                        <th className="px-4 py-3 font-semibold">End</th>
-                        <th className="px-4 py-3 font-semibold">Days</th>
-                        <th className="px-4 py-3 font-semibold">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {employee.leaveRequests.map((req) => (
-                        <tr key={req.id} className="border-b border-black/5">
-                          <td className="px-4 py-3 font-mono text-xs">
-                            {req.requestNumber}
-                          </td>
-                          <td className="px-4 py-3">{req.leaveType}</td>
-                          <td className="px-4 py-3">
-                            {new Date(req.startDate).toLocaleDateString()}
-                          </td>
-                          <td className="px-4 py-3">
-                            {new Date(req.endDate).toLocaleDateString()}
-                          </td>
-                          <td className="px-4 py-3">{req.leaveDays}</td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-block rounded-full px-2 py-1 text-[10px] font-medium ${
-                                leaveStatusBadgeClasses[req.status] ||
-                                "bg-black/5 text-black/60"
-                              }`}
-                            >
-                              {req.status}
-                            </span>
-                          </td>
+                {employee.leaveRequests.length === 0 ? (
+                  <p className="mt-3 text-sm text-black/45">
+                    No leave requests found.
+                  </p>
+                ) : (
+                  <div className="mt-3 overflow-hidden rounded-xl border border-black/10 bg-white">
+                    <table className="w-full text-left text-sm">
+                      <thead className="border-b border-black/10 bg-black/[0.02]">
+                        <tr>
+                          <th className="px-4 py-3 font-semibold">Request #</th>
+                          <th className="px-4 py-3 font-semibold">Type</th>
+                          <th className="px-4 py-3 font-semibold">Start</th>
+                          <th className="px-4 py-3 font-semibold">End</th>
+                          <th className="px-4 py-3 font-semibold">Days</th>
+                          <th className="px-4 py-3 font-semibold">Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {employee.leaveRequests.map((req) => (
+                          <tr key={req.id} className="border-b border-black/5">
+                            <td className="px-4 py-3 font-mono text-xs">
+                              {req.requestNumber}
+                            </td>
+                            <td className="px-4 py-3">{req.leaveType}</td>
+                            <td className="px-4 py-3">
+                              {new Date(req.startDate).toLocaleDateString()}
+                            </td>
+                            <td className="px-4 py-3">
+                              {new Date(req.endDate).toLocaleDateString()}
+                            </td>
+                            <td className="px-4 py-3">{req.leaveDays}</td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`inline-block rounded-full px-2 py-1 text-[10px] font-medium ${
+                                  leaveStatusBadgeClasses[req.status] ||
+                                  "bg-black/5 text-black/60"
+                                }`}
+                              >
+                                {req.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>
