@@ -27,10 +27,10 @@ export type Employee = {
 export type EmployeeListResponse = Employee[]; // the API returns an array
 
 export type UpdateEmployeePayload = {
-  firstName?: string;
-  lastName?: string;
+  fullName?: string;
   phone?: string;
   email?: string;
+  position?: string;
   departmentId?: string;
 };
 
