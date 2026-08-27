@@ -21,6 +21,7 @@ const roleLabels: Record<string, string> = {
 export function Topbar({ user }: TopbarProps) {
   const router = useRouter();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
   const displayName = user?.employee?.fullName || user?.username || "User";
@@ -55,10 +56,11 @@ export function Topbar({ user }: TopbarProps) {
   }, [isProfileOpen]);
 
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     try {
       await logout();
     } catch (error) {
-      // Ignore errors (token may already be expired)
+      // Ignore errors
     } finally {
       removeAccessToken();
       router.replace("/login");
@@ -153,20 +155,30 @@ export function Topbar({ user }: TopbarProps) {
                 {/* Logout button */}
                 <button
                   onClick={handleLogout}
-                  className="flex w-full items-center gap-2 rounded-lg bg-oteems-red px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-oteems-red-dark"
+                  disabled={isLoggingOut}
+                  className="flex w-full items-center gap-2 rounded-lg bg-oteems-red px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-oteems-red-dark disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    className="h-[18px] w-[18px]"
-                  >
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <polyline points="16 17 21 12 16 7" />
-                    <line x1="21" y1="12" x2="9" y2="12" />
-                  </svg>
-                  Log Out
+                  {isLoggingOut ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      Logging out...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        className="h-[18px] w-[18px]"
+                      >
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                      </svg>
+                      Log Out
+                    </>
+                  )}
                 </button>
               </div>
             </div>

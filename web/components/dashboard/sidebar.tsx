@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import type { AuthUser } from "@/types/auth";
 import { removeAccessToken } from "@/lib/auth";
 import { logout } from "@/lib/api/auth";
+
+// ============================================================
+// NAVIGATION DEFINITIONS
+// ============================================================
 
 const navigation = [
   {
@@ -114,13 +119,20 @@ const secondaryNavigation = [
   },
 ];
 
-// Helper to map role to display label
+// ============================================================
+// ROLE LABELS
+// ============================================================
+
 const roleLabels: Record<string, string> = {
   ADMIN: "Administrator",
   HR_USER: "HR User",
   DEPARTMENT_MANAGER: "Department Manager",
   EMPLOYEE: "Employee",
 };
+
+// ============================================================
+// SIDEBAR COMPONENT
+// ============================================================
 
 interface SidebarProps {
   user?: AuthUser | null;
@@ -129,6 +141,7 @@ interface SidebarProps {
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const userRole = user?.role;
   const displayName = user?.employee?.fullName || user?.username || "User";
@@ -150,12 +163,12 @@ export function Sidebar({ user }: SidebarProps) {
     .slice(0, 2);
 
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     try {
       await logout();
     } catch (error) {
-      // Ignore errors (token may already be expired)
+      // Ignore errors
     } finally {
-      // Always clear token and redirect
       removeAccessToken();
       router.replace("/login");
     }
@@ -232,23 +245,33 @@ export function Sidebar({ user }: SidebarProps) {
           </div>
         </div>
 
-        {/* Logout button – full width, red, icon + text */}
+        {/* Logout button with loading state */}
         <button
           onClick={handleLogout}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-oteems-red px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-oteems-red-dark"
+          disabled={isLoggingOut}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-oteems-red px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-oteems-red-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            className="h-[18px] w-[18px]"
-          >
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-          Log Out
+          {isLoggingOut ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              Logging out...
+            </>
+          ) : (
+            <>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="h-[18px] w-[18px]"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              Log Out
+            </>
+          )}
         </button>
       </div>
     </aside>
