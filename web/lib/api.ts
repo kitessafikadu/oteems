@@ -2,13 +2,13 @@ import { getAccessToken } from "./auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
-type RequestOptions = RequestInit & {
+type ApiOptions = RequestInit & {
   authenticated?: boolean;
 };
 
 export async function api<T>(
   endpoint: string,
-  options: RequestOptions = {},
+  options: ApiOptions = {},
 ): Promise<T> {
   const { authenticated = true, headers, ...fetchOptions } = options;
 
@@ -34,7 +34,12 @@ export async function api<T>(
 
     try {
       const error = await response.json();
-      message = error.message ?? message;
+
+      if (Array.isArray(error.message)) {
+        message = error.message.join(", ");
+      } else {
+        message = error.message ?? message;
+      }
     } catch {
       // Ignore invalid JSON responses
     }
