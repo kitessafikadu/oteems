@@ -70,7 +70,17 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f7f7f7]">
-        <div className="text-sm text-black/50">Loading dashboard…</div>
+        <div className="flex flex-col items-center gap-4">
+          <div
+            role="status"
+            aria-label="Loading"
+            className="relative h-10 w-10"
+          >
+            <div className="absolute inset-0 rounded-full border-4 border-black/10" />
+            <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-oteems-red" />
+          </div>
+          <p className="text-sm text-black/50">Loading dashboard…</p>
+        </div>
       </div>
     );
   }
