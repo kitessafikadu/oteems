@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getDepartments } from "@/lib/api/admin";
+import { getDepartments, createDepartment } from "@/lib/api/admin";
 import type { Department } from "@/types/department";
 import { getMe } from "@/lib/api/auth";
 import type { AuthUser } from "@/types/auth";
@@ -17,6 +17,11 @@ export default function DepartmentsPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Modal state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newDepartmentName, setNewDepartmentName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     getMe()
@@ -33,10 +38,19 @@ export default function DepartmentsPage() {
   }, [router]);
 
   useEffect(() => {
-    if (user) {
-      getDepartments()
-        .then((data: Department[]) => setDepartments(data))
-        .catch((err: unknown) => {
+    if (!user) return;
+
+    let cancelled = false;
+
+    async function loadDepartments() {
+      try {
+        const data = await getDepartments();
+        if (!cancelled) {
+          setDepartments(data as Department[]);
+          setError("");
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
           const error = err as { status?: number; message?: string };
           if (error?.status === 401 || error?.status === 403) {
             removeAccessToken();
@@ -44,10 +58,49 @@ export default function DepartmentsPage() {
             return;
           }
           setError(error?.message || "Failed to load departments.");
-        })
-        .finally(() => setLoading(false));
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     }
+
+    loadDepartments();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user, router]);
+
+  const handleCreateDepartment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDepartmentName.trim()) return;
+
+    setCreating(true);
+    setError("");
+
+    try {
+      const newDepartment = await createDepartment({
+        name: newDepartmentName.trim(),
+      });
+
+      // Append the new department to the existing list
+      setDepartments((prev) => [...prev, newDepartment as Department]);
+      setNewDepartmentName("");
+      setShowAddModal(false);
+    } catch (err: unknown) {
+      const error = err as { status?: number; message?: string };
+      if (error?.status === 401 || error?.status === 403) {
+        removeAccessToken();
+        router.replace("/login");
+        return;
+      }
+      setError(error?.message || "Failed to create department.");
+    } finally {
+      setCreating(false);
+    }
+  };
 
   if (!user || loading) {
     return (
@@ -76,13 +129,13 @@ export default function DepartmentsPage() {
                   Manage your organization&apos;s departments.
                 </p>
               </div>
-              <Link
-                href="/departments/new"
+              <button
+                onClick={() => setShowAddModal(true)}
                 className="inline-flex w-fit items-center gap-2 rounded-full bg-oteems-red px-5 py-3 text-xs font-semibold text-white transition-colors hover:bg-oteems-red-dark"
               >
                 <span className="text-base leading-none">+</span>
                 Add department
-              </Link>
+              </button>
             </div>
 
             {error && (
@@ -141,6 +194,50 @@ export default function DepartmentsPage() {
           </div>
         </main>
       </div>
+
+      {/* Add Department Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6">
+            <h3 className="text-lg font-bold">Add Department</h3>
+            <p className="mt-1 text-sm text-black/45">
+              Create a new department.
+            </p>
+
+            <form onSubmit={handleCreateDepartment} className="mt-4">
+              <label className="mb-2 block text-xs font-semibold">
+                Department Name
+              </label>
+              <input
+                type="text"
+                value={newDepartmentName}
+                onChange={(e) => setNewDepartmentName(e.target.value)}
+                required
+                autoFocus
+                className="h-11 w-full rounded-lg border border-black/15 px-4 text-sm outline-none focus:border-oteems-red"
+                placeholder="e.g., Finance"
+              />
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="rounded-lg border border-black/10 px-4 py-2.5 text-xs font-semibold text-black/60 hover:bg-black/[0.04]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating || !newDepartmentName.trim()}
+                  className="rounded-lg bg-oteems-red px-4 py-2.5 text-xs font-semibold text-white hover:bg-oteems-red-dark disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {creating ? "Creating..." : "Create Department"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
