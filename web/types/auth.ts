@@ -43,3 +43,6 @@ export type ChangePasswordPayload = {
 export type ChangePasswordResponse = {
   message: string;
 };
+export type LogoutResponse = {
+  message: string;
+};

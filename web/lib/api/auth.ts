@@ -25,3 +25,9 @@ export function changePassword(payload: ChangePasswordPayload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function logout() {
+  return api<{ message: string }>("/auth/logout", {
+    method: "POST",
+  });
+}

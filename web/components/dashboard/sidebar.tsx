@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { AuthUser } from "@/types/auth";
+import { removeAccessToken } from "@/lib/auth";
+import { logout } from "@/lib/api/auth";
 
-// Define roles for each navigation item
 const navigation = [
   {
     label: "Overview",
@@ -127,13 +128,12 @@ interface SidebarProps {
 
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
 
-  // If user is not provided, we could still render static items, but better to filter based on undefined role (show nothing)
   const userRole = user?.role;
   const displayName = user?.employee?.fullName || user?.username || "User";
   const roleLabel = userRole ? roleLabels[userRole] || userRole : "";
 
-  // Filter navigation items by user role
   const filteredNavigation = navigation.filter(
     (item) => !item.roles || (userRole && item.roles.includes(userRole)),
   );
@@ -142,13 +142,24 @@ export function Sidebar({ user }: SidebarProps) {
     (item) => !item.roles || (userRole && item.roles.includes(userRole)),
   );
 
-  // Initials for avatar
   const initials = displayName
     .split(" ")
     .map((part) => part[0])
     .join("")
     .toUpperCase()
     .slice(0, 2);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      // Ignore errors (token may already be expired)
+    } finally {
+      // Always clear token and redirect
+      removeAccessToken();
+      router.replace("/login");
+    }
+  };
 
   return (
     <aside className="hidden h-screen w-64 shrink-0 border-r border-black/10 bg-white lg:flex lg:flex-col">
@@ -209,6 +220,7 @@ export function Sidebar({ user }: SidebarProps) {
       </div>
 
       <div className="border-t border-black/10 p-4">
+        {/* Profile card */}
         <div className="flex items-center gap-3 rounded-xl bg-black/[0.03] p-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-oteems-black text-xs font-bold text-white">
             {initials}
@@ -219,6 +231,25 @@ export function Sidebar({ user }: SidebarProps) {
             <p className="truncate text-[10px] text-black/40">{roleLabel}</p>
           </div>
         </div>
+
+        {/* Logout button – full width, red, icon + text */}
+        <button
+          onClick={handleLogout}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-oteems-red px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-oteems-red-dark"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            className="h-[18px] w-[18px]"
+          >
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          Log Out
+        </button>
       </div>
     </aside>
   );
