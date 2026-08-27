@@ -506,4 +506,127 @@ export class ReportsService {
 
     return result;
   }
+
+  // ============================================================
+  // SUMMARY REPORT
+  // ============================================================
+
+  async getSummary(user: any) {
+    // Determine scope: for department managers, restrict to their department.
+    const departmentId = await this.getEffectiveDepartmentId(user);
+
+    const employeeWhere = departmentId ? { departmentId } : {};
+    const leaveWhere = departmentId ? { employee: { departmentId } } : {};
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const [
+      totalEmployees,
+      activeEmployees,
+      inactiveEmployees,
+      totalDepartments,
+      pendingLeaves,
+      approvedLeaves,
+      onLeaveTodayRequests,
+    ] = await Promise.all([
+      this.prisma.employee.count({ where: employeeWhere }),
+      this.prisma.employee.count({
+        where: { ...employeeWhere, status: EmploymentStatus.ACTIVE },
+      }),
+      this.prisma.employee.count({
+        where: {
+          ...employeeWhere,
+          status: {
+            in: [EmploymentStatus.INACTIVE, EmploymentStatus.TERMINATED],
+          },
+        },
+      }),
+      this.prisma.department.count({
+        where: departmentId ? { id: departmentId } : {},
+      }),
+      this.prisma.leaveRequest.count({
+        where: { ...leaveWhere, status: LeaveRequestStatus.SUBMITTED },
+      }),
+      this.prisma.leaveRequest.count({
+        where: { ...leaveWhere, status: LeaveRequestStatus.APPROVED },
+      }),
+      this.prisma.leaveRequest.findMany({
+        where: {
+          ...leaveWhere,
+          status: LeaveRequestStatus.APPROVED,
+          startDate: { lte: tomorrow }, // start before end of today
+          endDate: { gte: today }, // end after start of today
+        },
+        select: { employeeId: true },
+        distinct: ['employeeId'],
+      }),
+    ]);
+
+    return {
+      employees: {
+        total: totalEmployees,
+        active: activeEmployees,
+        inactive: inactiveEmployees,
+      },
+      departments: {
+        total: totalDepartments,
+      },
+      leave: {
+        pending: pendingLeaves,
+        approved: approvedLeaves,
+        onLeaveToday: onLeaveTodayRequests.length,
+      },
+    };
+  }
+
+  // ============================================================
+  // MY SUMMARY REPORT
+  // ============================================================
+
+  async getMySummary(user: any) {
+    if (!user.employeeId) {
+      throw new ForbiddenException('User is not linked to an employee');
+    }
+
+    const employeeId = user.employeeId;
+
+    const [pending, approved, rejected, cancelled, recentRequests] =
+      await Promise.all([
+        this.prisma.leaveRequest.count({
+          where: { employeeId, status: LeaveRequestStatus.SUBMITTED },
+        }),
+        this.prisma.leaveRequest.count({
+          where: { employeeId, status: LeaveRequestStatus.APPROVED },
+        }),
+        this.prisma.leaveRequest.count({
+          where: { employeeId, status: LeaveRequestStatus.REJECTED },
+        }),
+        this.prisma.leaveRequest.count({
+          where: { employeeId, status: LeaveRequestStatus.CANCELLED },
+        }),
+        this.prisma.leaveRequest.findMany({
+          where: { employeeId },
+          select: {
+            requestNumber: true,
+            leaveType: true,
+            status: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 5, // adjust as needed
+        }),
+      ]);
+
+    return {
+      leave: {
+        pending,
+        approved,
+        rejected,
+        cancelled,
+      },
+      recentRequests,
+    };
+  }
 }

@@ -102,4 +102,45 @@ export class ReportsController {
   async getLeavesByDepartment(@Req() req: any, @Query() dto: LeaveReportDto) {
     return this.reportsService.getLeavesByDepartment(req.user, dto);
   }
+
+  // ============================================================
+  // SUMMARY REPORT (HR / Admin / Dept Manager scoped)
+  // ============================================================
+
+  @Get('summary')
+  @Roles(UserRole.ADMIN, UserRole.HR_USER, UserRole.DEPARTMENT_MANAGER)
+  @ApiOperation({
+    summary: 'Get summary report',
+    description:
+      'Returns organisation-wide summary for HR/Admin, and department‑scoped summary for Department Managers.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Summary report generated successfully.',
+  })
+  async getSummary(@Req() req: any) {
+    return this.reportsService.getSummary(req.user);
+  }
+
+  // ============================================================
+  // MY SUMMARY REPORT (any authenticated user linked to employee)
+  // ============================================================
+
+  @Get('my-summary')
+  @ApiOperation({
+    summary: 'Get my leave summary',
+    description:
+      'Returns the authenticated employee’s own leave statistics and recent requests.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Personal leave summary generated successfully.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'User is not linked to an employee.',
+  })
+  async getMySummary(@Req() req: any) {
+    return this.reportsService.getMySummary(req.user);
+  }
 }
