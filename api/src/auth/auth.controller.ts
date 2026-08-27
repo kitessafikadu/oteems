@@ -29,7 +29,7 @@ export class AuthController {
   @ApiBearerAuth('access-token')
   @UseGuards(JwtAuthGuard)
   getMe(@Req() request: AuthenticatedRequest) {
-    return request.user;
+    return this.authService.getProfile(request.user.id);
   }
 
   @Patch('change-password')

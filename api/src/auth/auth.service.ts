@@ -54,15 +54,50 @@ export class AuthService {
     };
   }
 
+  async getProfile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        isActive: true,
+        employeeId: true,
+        employee: {
+          select: {
+            id: true,
+            employeeId: true,
+            fullName: true,
+            phone: true,
+            email: true,
+            position: true,
+            hireDate: true,
+            status: true,
+            department: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+
+    return user;
+  }
+
   async changePassword(
     userId: string,
     currentPassword: string,
     newPassword: string,
   ) {
     const user = await this.prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
+      where: { id: userId },
     });
 
     if (!user || !user.isActive) {
@@ -81,16 +116,10 @@ export class AuthService {
     const newPasswordHash = await bcrypt.hash(newPassword, 10);
 
     await this.prisma.user.update({
-      where: {
-        id: userId,
-      },
-      data: {
-        passwordHash: newPasswordHash,
-      },
+      where: { id: userId },
+      data: { passwordHash: newPasswordHash },
     });
 
-    return {
-      message: 'Password changed successfully',
-    };
+    return { message: 'Password changed successfully' };
   }
 }
