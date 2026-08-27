@@ -1,6 +1,20 @@
 "use client";
 
-export function Topbar() {
+import type { AuthUser } from "@/types/auth";
+
+interface TopbarProps {
+  user?: AuthUser | null;
+}
+
+export function Topbar({ user }: TopbarProps) {
+  const displayName = user?.employee?.fullName || user?.username || "User";
+  const initials = displayName
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
   return (
     <header className="flex h-20 items-center justify-between border-b border-black/10 bg-white px-5 sm:px-8">
       <div>
@@ -11,7 +25,7 @@ export function Topbar() {
             day: "numeric",
             year: "numeric",
           })}
-        </p>{" "}
+        </p>
         <h1 className="mt-0.5 text-lg font-bold tracking-tight">Dashboard</h1>
       </div>
 
@@ -38,7 +52,7 @@ export function Topbar() {
           className="flex h-10 w-10 items-center justify-center rounded-full bg-oteems-black text-xs font-bold text-white"
           aria-label="Account"
         >
-          KF
+          {initials}
         </button>
       </div>
     </header>

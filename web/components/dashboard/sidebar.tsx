@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { AuthUser } from "@/types/auth";
 
+// Define roles for each navigation item
 const navigation = [
   {
     label: "Overview",
     href: "/dashboard",
+    roles: ["ADMIN", "HR_USER", "DEPARTMENT_MANAGER", "EMPLOYEE"],
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -24,6 +27,7 @@ const navigation = [
   {
     label: "Employees",
     href: "/employees",
+    roles: ["ADMIN", "HR_USER", "DEPARTMENT_MANAGER"],
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -41,6 +45,7 @@ const navigation = [
   {
     label: "Departments",
     href: "/departments",
+    roles: ["ADMIN", "HR_USER"],
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -57,6 +62,7 @@ const navigation = [
   {
     label: "Leave",
     href: "/leave",
+    roles: ["ADMIN", "HR_USER", "DEPARTMENT_MANAGER", "EMPLOYEE"],
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -72,6 +78,7 @@ const navigation = [
   {
     label: "Reports",
     href: "/reports",
+    roles: ["ADMIN", "HR_USER", "DEPARTMENT_MANAGER"],
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -91,6 +98,7 @@ const secondaryNavigation = [
   {
     label: "Settings",
     href: "/settings",
+    roles: ["ADMIN", "HR_USER", "DEPARTMENT_MANAGER", "EMPLOYEE"],
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -105,8 +113,42 @@ const secondaryNavigation = [
   },
 ];
 
-export function Sidebar() {
+// Helper to map role to display label
+const roleLabels: Record<string, string> = {
+  ADMIN: "Administrator",
+  HR_USER: "HR User",
+  DEPARTMENT_MANAGER: "Department Manager",
+  EMPLOYEE: "Employee",
+};
+
+interface SidebarProps {
+  user?: AuthUser | null;
+}
+
+export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
+
+  // If user is not provided, we could still render static items, but better to filter based on undefined role (show nothing)
+  const userRole = user?.role;
+  const displayName = user?.employee?.fullName || user?.username || "User";
+  const roleLabel = userRole ? roleLabels[userRole] || userRole : "";
+
+  // Filter navigation items by user role
+  const filteredNavigation = navigation.filter(
+    (item) => !item.roles || (userRole && item.roles.includes(userRole)),
+  );
+
+  const filteredSecondaryNavigation = secondaryNavigation.filter(
+    (item) => !item.roles || (userRole && item.roles.includes(userRole)),
+  );
+
+  // Initials for avatar
+  const initials = displayName
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <aside className="hidden h-screen w-64 shrink-0 border-r border-black/10 bg-white lg:flex lg:flex-col">
@@ -125,7 +167,7 @@ export function Sidebar() {
         </p>
 
         <nav className="mt-3 space-y-1">
-          {navigation.map((item) => {
+          {filteredNavigation.map((item) => {
             const active =
               item.href === "/dashboard"
                 ? pathname === "/dashboard"
@@ -153,7 +195,7 @@ export function Sidebar() {
         </p>
 
         <nav className="mt-3 space-y-1">
-          {secondaryNavigation.map((item) => (
+          {filteredSecondaryNavigation.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -169,12 +211,12 @@ export function Sidebar() {
       <div className="border-t border-black/10 p-4">
         <div className="flex items-center gap-3 rounded-xl bg-black/[0.03] p-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-oteems-black text-xs font-bold text-white">
-            KF
+            {initials}
           </div>
 
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold">Kitessa Fikadu</p>
-            <p className="truncate text-[10px] text-black/40">Administrator</p>
+            <p className="truncate text-xs font-semibold">{displayName}</p>
+            <p className="truncate text-[10px] text-black/40">{roleLabel}</p>
           </div>
         </div>
       </div>

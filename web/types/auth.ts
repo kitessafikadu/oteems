@@ -1,6 +1,18 @@
-export type LoginPayload = {
-  username: string;
-  password: string;
+export type Department = {
+  id: string;
+  name: string;
+};
+
+export type Employee = {
+  id: string;
+  employeeId: string;
+  fullName: string;
+  phone: string;
+  email: string;
+  position: string;
+  hireDate: string;
+  status: string;
+  department: Department;
 };
 
 export type AuthUser = {
@@ -8,7 +20,12 @@ export type AuthUser = {
   username: string;
   role: string;
   employeeId: string | null;
-  employee: unknown | null;
+  employee: Employee | null;
+};
+
+export type LoginPayload = {
+  username: string;
+  password: string;
 };
 
 export type LoginResponse = {

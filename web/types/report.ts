@@ -20,3 +20,19 @@ export type UpdateReportPayload = {
   type?: ReportType;
   description?: string;
 };
+
+export interface SummaryReport {
+  employees: {
+    total: number;
+    active: number;
+    inactive: number;
+  };
+  departments: {
+    total: number;
+  };
+  leave: {
+    pending: number;
+    approved: number;
+    onLeaveToday: number;
+  };
+}
