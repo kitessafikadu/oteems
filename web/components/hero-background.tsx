@@ -21,7 +21,7 @@ export default function HeroBackground() {
   }, []);
 
   return (
-    <div className="absolute inset-0 -z-10 overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden">
       {images.map((image, index) => {
         const previous = (current - 1 + images.length) % images.length;
 
@@ -41,15 +41,16 @@ export default function HeroBackground() {
               alt=""
               fill
               priority={index === 0}
+              loading="eager"
               sizes="100vw"
-              className="object-cover"
+              className="object-cover blur-[2px] scale-105"
             />
           </div>
         );
       })}
 
-      {/* Readability overlay */}
-      <div className="absolute inset-0 bg-white/55" />
+      {/* Readability overlay – slightly stronger */}
+      <div className="absolute inset-0 bg-white/40" />
     </div>
   );
 }

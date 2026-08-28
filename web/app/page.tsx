@@ -130,7 +130,7 @@ export default function Home() {
               <span className="text-oteems-red">One system.</span>
             </h1>
 
-            <p className="mx-auto mt-8 max-w-2xl text-base leading-7 text-black/60 sm:text-lg">
+            <p className="mx-auto mt-8 max-w-2xl text-base font-medium leading-7 text-black/80 drop-shadow-sm sm:text-lg">
               OTEEMS helps organizations manage employees, departments, leave,
               and workforce data from one simple and powerful platform.
             </p>
