@@ -1,4 +1,6 @@
 import Link from "next/link";
+import Image from "next/image";
+import HeroBackground from "@/components/hero-background";
 
 const features = [
   {
@@ -31,21 +33,21 @@ const employees = [
   {
     initials: "AB",
     name: "Abebe Bekele",
-    role: "Software Engineer",
+    position: "Software Engineer",
     department: "Engineering",
     status: "Active",
   },
   {
     initials: "MH",
     name: "Mekdes Haile",
-    role: "Product Designer",
+    position: "Product Designer",
     department: "Design",
     status: "Active",
   },
   {
     initials: "DA",
     name: "Dawit Alemu",
-    role: "HR Manager",
+    position: "HR Manager",
     department: "Human Resources",
     status: "Active",
   },
@@ -57,8 +59,22 @@ export default function Home() {
       {/* Navigation */}
       <header className="border-b border-black/10">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6 lg:px-8">
-          <Link href="/" className="text-2xl font-black tracking-[-0.05em]">
-            OTEEMS<span className="text-oteems-red">.</span>
+          <Link
+            href="/"
+            className="flex items-center text-2xl font-black tracking-[-0.05em]"
+          >
+            {/* <Image
+              src="/otech-logo.png"
+              alt="OTEEMS logo"
+              width={200}
+              height={75}
+              priority
+              className="mr-2.5 h-9 w-auto"
+            /> */}
+
+            <span className="leading-none">
+              OTEEMS<span className="text-oteems-red">.</span>
+            </span>
           </Link>
 
           <nav className="hidden items-center gap-8 text-sm font-medium md:flex">
@@ -68,12 +84,14 @@ export default function Home() {
             >
               Features
             </a>
+
             <a
               href="#about"
               className="transition-colors hover:text-oteems-red"
             >
               About
             </a>
+
             <a
               href="#contact"
               className="transition-colors hover:text-oteems-red"
@@ -101,8 +119,10 @@ export default function Home() {
       </header>
 
       {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="mx-auto max-w-7xl px-6 pb-20 pt-20 lg:px-8 lg:pb-28 lg:pt-28">
+      <section className="relative min-h-[700px] overflow-hidden">
+        <HeroBackground />
+
+        <div className="relative mx-auto flex min-h-[700px] max-w-7xl items-center px-6 py-20 lg:px-8 lg:py-28">
           <div className="mx-auto max-w-4xl text-center">
             <h1 className="text-balance text-5xl font-black leading-[0.95] tracking-[-0.06em] sm:text-6xl lg:text-8xl">
               Your people.
@@ -125,15 +145,19 @@ export default function Home() {
 
               <a
                 href="#features"
-                className="rounded-full border border-black/15 px-7 py-3.5 text-sm font-medium transition-all hover:border-black/30 hover:bg-black/[0.03]"
+                className="rounded-full border border-black/15 bg-white/30 px-7 py-3.5 text-sm font-medium backdrop-blur-sm transition-all hover:border-black/30 hover:bg-white/50"
               >
                 Explore features
               </a>
             </div>
           </div>
+        </div>
+      </section>
 
-          {/* Dashboard preview */}
-          <div className="relative mx-auto mt-20 max-w-6xl">
+      {/* Dashboard preview */}
+      <section className="border-b border-black/10 bg-white">
+        <div className="mx-auto max-w-7xl px-6 pb-24 pt-20 lg:px-8 lg:pb-28">
+          <div className="relative mx-auto max-w-6xl">
             <div className="absolute left-1/2 top-1/2 -z-10 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-oteems-red/10 blur-3xl" />
 
             <div className="overflow-hidden rounded-2xl border border-black/10 bg-[#f7f7f7] shadow-[0_30px_80px_rgba(0,0,0,0.12)]">
@@ -144,7 +168,7 @@ export default function Home() {
                 <span className="h-2.5 w-2.5 rounded-full bg-black/10" />
 
                 <div className="mx-auto hidden rounded-md bg-black/[0.04] px-20 py-1 text-[10px] text-black/30 sm:block">
-                  app.oteems.com/dashboard
+                  oteems.et/dashboard
                 </div>
               </div>
 
@@ -181,6 +205,7 @@ export default function Home() {
                     <div className="text-[10px] uppercase tracking-wider text-black/30">
                       Workspace
                     </div>
+
                     <div className="mt-3 text-xs font-medium">
                       OTech Engineering
                     </div>
@@ -194,6 +219,7 @@ export default function Home() {
                       <p className="text-[10px] uppercase tracking-wider text-black/40">
                         Overview
                       </p>
+
                       <h2 className="mt-1 text-2xl font-bold tracking-tight">
                         Good morning.
                       </h2>
@@ -219,6 +245,7 @@ export default function Home() {
                         <div className="text-xl font-bold tracking-tight">
                           {value}
                         </div>
+
                         <div className="mt-1 text-[10px] text-black/40">
                           {label}
                         </div>
@@ -231,6 +258,7 @@ export default function Home() {
                     <div className="flex items-center justify-between border-b border-black/10 px-4 py-4">
                       <div>
                         <h3 className="text-xs font-bold">Recent employees</h3>
+
                         <p className="mt-0.5 text-[10px] text-black/40">
                           Latest additions to your workforce
                         </p>
@@ -256,8 +284,9 @@ export default function Home() {
                               <div className="text-[11px] font-semibold">
                                 {employee.name}
                               </div>
+
                               <div className="text-[9px] text-black/40">
-                                {employee.role}
+                                {employee.position}
                               </div>
                             </div>
                           </div>
