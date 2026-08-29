@@ -103,16 +103,9 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <Link
               href="/login"
-              className="hidden px-4 py-2.5 text-sm font-medium transition-colors hover:text-oteems-red sm:block"
+              className="rounded-full bg-oteems-red px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-oteems-red"
             >
               Sign in
-            </Link>
-
-            <Link
-              href="/dashboard"
-              className="rounded-full bg-oteems-black px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-oteems-red"
-            >
-              Get started
             </Link>
           </div>
         </div>
@@ -137,8 +130,8 @@ export default function Home() {
 
             <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
               <Link
-                href="/dashboard"
-                className="rounded-full bg-oteems-red px-7 py-3.5 text-sm font-medium text-white transition-all hover:bg-oteems-red-dark hover:shadow-lg"
+                href="/login"
+                className="rounded-full bg-oteems-black  px-7 py-3.5 text-sm font-medium text-white transition-all hover:bg-oteems-red-dark hover:shadow-lg"
               >
                 Get started
               </Link>
@@ -374,7 +367,7 @@ export default function Home() {
             </p>
 
             <Link
-              href="/dashboard"
+              href="/login"
               className="mt-9 inline-flex rounded-full bg-oteems-red px-7 py-3.5 text-sm font-medium text-white transition-all hover:bg-white hover:text-black"
             >
               Start using OTEEMS
