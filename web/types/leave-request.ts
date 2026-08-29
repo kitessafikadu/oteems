@@ -8,6 +8,7 @@ export type LeaveType =
 
 export type LeaveRequestStatus =
   | "DRAFT"
+  | "SUBMITTED"
   | "PENDING"
   | "APPROVED"
   | "REJECTED"
@@ -16,21 +17,32 @@ export type LeaveRequestStatus =
 export type LeaveRequest = {
   id: string;
   employeeId: string;
+  requestNumber?: string;
   leaveType: LeaveType;
   startDate: string;
   endDate: string;
-  reason?: string;
-  requestNumber?: string;
   leaveDays?: number;
+  reason?: string;
   status: LeaveRequestStatus;
+  rejectionReason?: string;
+  reviewedAt?: string;
+  reviewedById?: string;
   createdAt: string;
   updatedAt: string;
 
   employee?: {
     id: string;
     employeeId: string;
-    firstName: string;
-    lastName: string;
+    fullName?: string;
+    department?: {
+      id: string;
+      name: string;
+    };
+  };
+
+  reviewer?: {
+    id: string;
+    username: string;
   };
 };
 

@@ -62,9 +62,11 @@ export function approveLeaveRequest(id: string) {
   });
 }
 
-export function rejectLeaveRequest(id: string) {
+// Updated to accept a rejection reason
+export function rejectLeaveRequest(id: string, reason: string) {
   return api<LeaveRequest>(`/requests/${id}/reject`, {
     method: "PATCH",
+    body: JSON.stringify({ rejectionReason: reason }),
   });
 }
 

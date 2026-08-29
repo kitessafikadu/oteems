@@ -7,10 +7,6 @@ import type { AuthUser } from "@/types/auth";
 import { removeAccessToken } from "@/lib/auth";
 import { logout } from "@/lib/api/auth";
 
-// ============================================================
-// NAVIGATION DEFINITIONS
-// ============================================================
-
 const navigation = [
   {
     label: "Overview",
@@ -66,8 +62,8 @@ const navigation = [
     ),
   },
   {
-    label: "Leave",
-    href: "/leave",
+    label: "Leave Requests",
+    href: "/leave-requests",
     roles: ["ADMIN", "HR_USER", "DEPARTMENT_MANAGER", "EMPLOYEE"],
     icon: (
       <svg
