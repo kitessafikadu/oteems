@@ -26,19 +26,7 @@ const reportCards = [
   {
     title: "Leave Requests",
     description: "All leave requests with filters and status breakdown.",
-    href: "/reports/leaves",
-    roles: ["ADMIN", "HR_USER", "DEPARTMENT_MANAGER"],
-  },
-  {
-    title: "Leaves by Type",
-    description: "Leave requests grouped by type.",
-    href: "/reports/leaves/by-type",
-    roles: ["ADMIN", "HR_USER", "DEPARTMENT_MANAGER"],
-  },
-  {
-    title: "Leaves by Department",
-    description: "Leave requests grouped by department.",
-    href: "/reports/leaves/by-department",
+    href: "/reports/leave-requests",
     roles: ["ADMIN", "HR_USER", "DEPARTMENT_MANAGER"],
   },
 ];
