@@ -41,7 +41,6 @@ export default function DashboardPage() {
     if (userLoading) return;
 
     if (!user) {
-      setLoadingSummary(false);
       router.replace("/login");
       return;
     }
@@ -75,7 +74,7 @@ export default function DashboardPage() {
     };
   }, [user, userLoading, router]);
 
-  if (userLoading || loadingSummary) {
+  if (userLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f7f7f7]">
         <div className="flex flex-col items-center gap-4">
@@ -95,6 +94,24 @@ export default function DashboardPage() {
 
   if (!user) {
     return null;
+  }
+
+  if (loadingSummary) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f7f7f7]">
+        <div className="flex flex-col items-center gap-4">
+          <div
+            role="status"
+            aria-label="Loading"
+            className="relative h-10 w-10"
+          >
+            <div className="absolute inset-0 rounded-full border-4 border-black/10" />
+            <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-oteems-red" />
+          </div>
+          <p className="text-sm text-black/50">Loading dashboard…</p>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
