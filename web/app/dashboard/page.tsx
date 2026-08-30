@@ -10,11 +10,9 @@ import { Sidebar } from "@/components/dashboard/sidebar";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Topbar } from "@/components/dashboard/topbar";
 
-import { getMe } from "@/lib/api/auth";
-import { getSummaryReport } from "@/lib/api/reports";
-import type { AuthUser } from "@/types/auth";
-import type { SummaryReport } from "@/types/report";
-import { removeAccessToken } from "@/lib/auth";
+import { useUser } from "@/components/user-provider";
+import { getSummaryReport, getMySummaryReport } from "@/lib/api/reports";
+import type { SummaryReport, MySummaryReport } from "@/types/report";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -31,43 +29,53 @@ function getFirstName(fullName?: string, fallback?: string): string {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { user, loading: userLoading } = useUser();
 
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [summary, setSummary] = useState<SummaryReport | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState<
+    SummaryReport | MySummaryReport | null
+  >(null);
+  const [loadingSummary, setLoadingSummary] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    async function loadDashboard() {
+    if (userLoading) return;
+
+    if (!user) {
+      setLoadingSummary(false);
+      router.replace("/login");
+      return;
+    }
+
+    const currentUser = user;
+    let cancelled = false;
+
+    async function loadSummary() {
       try {
-        const [currentUser, report] = await Promise.all([
-          getMe(),
-          getSummaryReport(),
-        ]);
-
-        setUser(currentUser);
-        setSummary(report);
-      } catch (err: unknown) {
-        console.error("Dashboard load error:", err);
-
-        const error = err as { status?: number; message?: string };
-
-        if (error?.status === 401 || error?.status === 403) {
-          removeAccessToken();
-          router.replace("/login");
-          return;
+        if (currentUser.role === "EMPLOYEE") {
+          const mySummary = await getMySummaryReport();
+          if (!cancelled) setSummary(mySummary);
+        } else {
+          const orgSummary = await getSummaryReport();
+          if (!cancelled) setSummary(orgSummary);
         }
-
-        setError(error?.message || "Failed to load dashboard data.");
+      } catch (err: unknown) {
+        if (!cancelled) {
+          console.error("Dashboard summary error:", err);
+          setError("Failed to load dashboard data.");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoadingSummary(false);
       }
     }
 
-    loadDashboard();
-  }, [router]);
+    loadSummary();
 
-  if (loading) {
+    return () => {
+      cancelled = true;
+    };
+  }, [user, userLoading, router]);
+
+  if (userLoading || loadingSummary) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f7f7f7]">
         <div className="flex flex-col items-center gap-4">
@@ -85,6 +93,10 @@ export default function DashboardPage() {
     );
   }
 
+  if (!user) {
+    return null;
+  }
+
   if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f7f7f7]">
@@ -95,7 +107,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (!user || !summary) return null;
+  if (!summary) return null;
 
   const isAdmin = user.role === "ADMIN";
   const isHR = user.role === "HR_USER";
@@ -109,13 +121,14 @@ export default function DashboardPage() {
   const greeting = getGreeting();
   const firstName = getFirstName(user.employee?.fullName, user.username);
 
+  const orgSummary = !isEmployee ? (summary as SummaryReport) : null;
+  const mySummary = isEmployee ? (summary as MySummaryReport) : null;
+
   return (
     <div className="flex min-h-screen bg-[#f7f7f7]">
       <Sidebar user={user} />
-
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar user={user} />
-
         <main className="flex-1 p-5 sm:p-8">
           <div className="mx-auto max-w-7xl">
             {/* Mobile brand */}
@@ -126,13 +139,6 @@ export default function DashboardPage() {
               >
                 OTEEMS<span className="text-oteems-red">.</span>
               </Link>
-
-              <button
-                type="button"
-                className="rounded-lg border border-black/10 bg-white px-3 py-2 text-xs font-medium"
-              >
-                Menu
-              </button>
             </div>
 
             {/* Welcome */}
@@ -147,9 +153,11 @@ export default function DashboardPage() {
                 </h2>
 
                 <p className="mt-2 text-sm text-black/45">
-                  {isDeptManager
-                    ? "Here's what's happening in your department."
-                    : "Here's what's happening across your organization."}
+                  {isEmployee
+                    ? "Welcome to your employee portal. Here is your leave summary."
+                    : isDeptManager
+                      ? "Here's what's happening in your department."
+                      : "Here's what's happening across your organization."}
                 </p>
               </div>
 
@@ -162,32 +170,69 @@ export default function DashboardPage() {
                   Add employee
                 </Link>
               )}
+
+              {isEmployee && (
+                <Link
+                  href="/leave-requests"
+                  className="inline-flex w-fit items-center gap-2 rounded-full bg-oteems-red px-5 py-3 text-xs font-semibold text-white transition-colors hover:bg-oteems-red-dark"
+                >
+                  <span className="text-base leading-none">+</span>
+                  Request leave
+                </Link>
+              )}
             </div>
 
             {/* Stats */}
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard
-                label="Total employees"
-                value={String(summary.employees.total)}
-              />
-              <StatCard
-                label="Departments"
-                value={String(summary.departments.total)}
-              />
-              <StatCard
-                label="On leave"
-                value={String(summary.leave.onLeaveToday).padStart(2, "0")}
-              />
-              <StatCard
-                label="Active employees"
-                value={String(summary.employees.active)}
-              />
-            </div>
+            {orgSummary && (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <StatCard
+                  label="Total employees"
+                  value={String(orgSummary.employees.total)}
+                />
+                <StatCard
+                  label="Active employees"
+                  value={String(orgSummary.employees.active)}
+                />
+                <StatCard
+                  label="Departments"
+                  value={String(orgSummary.departments.total)}
+                />
+                <StatCard
+                  label="On leave today"
+                  value={String(orgSummary.leave.onLeaveToday).padStart(2, "0")}
+                />
+              </div>
+            )}
+
+            {mySummary && (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <StatCard
+                  label="Pending requests"
+                  value={String(mySummary.leave.pending)}
+                />
+                <StatCard
+                  label="Approved requests"
+                  value={String(mySummary.leave.approved)}
+                />
+                <StatCard
+                  label="Rejected requests"
+                  value={String(mySummary.leave.rejected)}
+                />
+                <StatCard
+                  label="Cancelled requests"
+                  value={String(mySummary.leave.cancelled)}
+                />
+              </div>
+            )}
 
             {/* Main content */}
-            <div className="mt-5 grid gap-5 xl:grid-cols-[1.5fr_1fr]">
-              <RecentEmployees />
-              <LeaveRequests />
+            <div
+              className={`mt-5 grid gap-5 ${
+                !isEmployee ? "xl:grid-cols-[1.5fr_1fr]" : "grid-cols-1"
+              }`}
+            >
+              {!isEmployee && <RecentEmployees user={user} />}
+              <LeaveRequests user={user} />
             </div>
 
             {/* Bottom section */}
@@ -200,12 +245,17 @@ export default function DashboardPage() {
                     </p>
 
                     <h3 className="mt-2 text-xl font-bold tracking-tight">
-                      Your workforce is growing.
+                      {isEmployee
+                        ? "Employee Self-Service"
+                        : "Your workforce is growing."}
                     </h3>
 
                     <p className="mt-2 max-w-md text-xs leading-5 text-white/45">
-                      You currently have {summary.employees.total} employees
-                      across {summary.departments.total} departments.
+                      {isEmployee
+                        ? "Manage your leave requests and review your status seamlessly."
+                        : orgSummary
+                          ? `You currently have ${orgSummary.employees.total} employees across ${orgSummary.departments.total} departments.`
+                          : "Keep your employee data organized as your organization grows."}
                     </p>
                   </div>
 
@@ -259,6 +309,16 @@ export default function DashboardPage() {
                       className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-3 text-xs font-medium transition-colors hover:border-oteems-red hover:text-oteems-red"
                     >
                       View reports
+                      <span>→</span>
+                    </Link>
+                  )}
+
+                  {isEmployee && (
+                    <Link
+                      href="/leave-requests"
+                      className="flex items-center justify-between rounded-lg border border-black/10 px-4 py-3 text-xs font-medium transition-colors hover:border-oteems-red hover:text-oteems-red"
+                    >
+                      Manage leave requests
                       <span>→</span>
                     </Link>
                   )}

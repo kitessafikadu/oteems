@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { login } from "@/lib/api/auth";
-import { setAccessToken } from "@/lib/auth";
+import { useUser } from "@/components/user-provider";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { user, loading: userLoading, setUser } = useUser();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -16,6 +17,12 @@ export default function LoginPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!userLoading && user) {
+      router.replace("/dashboard");
+    }
+  }, [user, userLoading, router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -29,9 +36,11 @@ export default function LoginPage() {
         password,
       });
 
-      setAccessToken(response.accessToken);
+      if (response?.user) {
+        setUser(response.user);
+      }
 
-      router.replace("/dashboard");
+      router.push("/dashboard");
     } catch (error) {
       setError(
         error instanceof Error
@@ -50,7 +59,6 @@ export default function LoginPage() {
         <section className="relative hidden overflow-hidden bg-oteems-black lg:flex">
           <div className="absolute inset-0">
             <div className="absolute left-[-10%] top-[15%] h-80 w-80 rounded-full bg-oteems-red/20 blur-3xl" />
-
             <div className="absolute bottom-[-10%] right-[-5%] h-96 w-96 rounded-full bg-oteems-red/10 blur-3xl" />
           </div>
 
@@ -179,13 +187,11 @@ export default function LoginPage() {
                             strokeLinejoin="round"
                             d="M3 3l18 18"
                           />
-
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             d="M10.58 10.58a2 2 0 002.84 2.84"
                           />
-
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -206,7 +212,6 @@ export default function LoginPage() {
                             strokeLinejoin="round"
                             d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"
                           />
-
                           <circle cx="12" cy="12" r="2.5" />
                         </svg>
                       )}

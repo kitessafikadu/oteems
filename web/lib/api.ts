@@ -8,6 +8,10 @@ type ApiOptions = RequestInit & {
   authenticated?: boolean;
 };
 
+interface ApiError extends Error {
+  status?: number;
+}
+
 export async function api<T>(
   endpoint: string,
   options: ApiOptions = {},
@@ -20,13 +24,7 @@ export async function api<T>(
     ...fetchOptions,
     headers: {
       "Content-Type": "application/json",
-
-      ...(token
-        ? {
-            Authorization: `Bearer ${token}`,
-          }
-        : {}),
-
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
   });
@@ -36,17 +34,18 @@ export async function api<T>(
 
     try {
       const error = await response.json();
-
       if (Array.isArray(error.message)) {
         message = error.message.join(", ");
       } else {
         message = error.message ?? message;
       }
     } catch {
-      // Ignore invalid JSON responses
+      // ignore invalid JSON
     }
 
-    throw new Error(message);
+    const apiError = new Error(message) as ApiError;
+    apiError.status = response.status; // attach status
+    throw apiError;
   }
 
   if (response.status === 204) {

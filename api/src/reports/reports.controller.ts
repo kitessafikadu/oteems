@@ -2,7 +2,6 @@ import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
-  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -20,15 +19,11 @@ import { UserRole } from '../../generated/prisma/client';
 @ApiTags('Reports')
 @ApiBearerAuth('access-token')
 @Controller('reports')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
-  // ============================================================
-  // EMPLOYEE REPORT
-  // ============================================================
-
   @Get('employees')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.HR_USER, UserRole.DEPARTMENT_MANAGER)
   @ApiOperation({
     summary: 'Get employee report',
@@ -47,11 +42,8 @@ export class ReportsController {
     return this.reportsService.getEmployeeReport(req.user, dto);
   }
 
-  // ============================================================
-  // LEAVE REPORT
-  // ============================================================
-
   @Get('leaves')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.HR_USER, UserRole.DEPARTMENT_MANAGER)
   @ApiOperation({
     summary: 'Get leave request report',
@@ -66,11 +58,8 @@ export class ReportsController {
     return this.reportsService.getLeaveReport(req.user, dto);
   }
 
-  // ============================================================
-  // LEAVE REPORT BY TYPE
-  // ============================================================
-
   @Get('leaves/by-type')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.HR_USER, UserRole.DEPARTMENT_MANAGER)
   @ApiOperation({
     summary: 'Get leave report grouped by leave type',
@@ -84,11 +73,8 @@ export class ReportsController {
     return this.reportsService.getLeavesByType(req.user, dto);
   }
 
-  // ============================================================
-  // LEAVE REPORT BY DEPARTMENT
-  // ============================================================
-
   @Get('leaves/by-department')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.HR_USER, UserRole.DEPARTMENT_MANAGER)
   @ApiOperation({
     summary: 'Get leave report grouped by department',
@@ -103,11 +89,8 @@ export class ReportsController {
     return this.reportsService.getLeavesByDepartment(req.user, dto);
   }
 
-  // ============================================================
-  // SUMMARY REPORT (HR / Admin / Dept Manager scoped)
-  // ============================================================
-
   @Get('summary')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.HR_USER, UserRole.DEPARTMENT_MANAGER)
   @ApiOperation({
     summary: 'Get summary report',
@@ -122,11 +105,8 @@ export class ReportsController {
     return this.reportsService.getSummary(req.user);
   }
 
-  // ============================================================
-  // MY SUMMARY REPORT (any authenticated user linked to employee)
-  // ============================================================
-
   @Get('my-summary')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary: 'Get my leave summary',
     description:
