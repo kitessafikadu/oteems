@@ -34,7 +34,7 @@ function decodeJwtPayload(token: string): JwtPayload | null {
   }
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const token = request.cookies.get("oteems_access_token")?.value;
 
   if (!token) {

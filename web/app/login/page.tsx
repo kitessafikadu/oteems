@@ -40,7 +40,7 @@ export default function LoginPage() {
         setUser(response.user);
       }
 
-      router.push("/dashboard");
+      window.location.href = "/dashboard";
     } catch (error) {
       setError(
         error instanceof Error
