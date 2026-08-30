@@ -25,6 +25,12 @@ export default function DepartmentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Toast state
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
+
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
   const [editName, setEditName] = useState("");
@@ -35,6 +41,13 @@ export default function DepartmentDetailPage() {
   const [managerCandidates, setManagerCandidates] = useState<AuthUser[]>([]);
   const [selectedManagerId, setSelectedManagerId] = useState("");
   const [updatingManager, setUpdatingManager] = useState(false);
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     getMe()
@@ -71,7 +84,6 @@ export default function DepartmentDetailPage() {
     }
   }, [id, user, router]);
 
-  // Edit modal handlers
   const openEditModal = () => {
     if (department) {
       setEditName(department.name || "");
@@ -88,15 +100,22 @@ export default function DepartmentDetailPage() {
       });
       setDepartment(updated);
       setShowEditModal(false);
+      setToast({
+        message: "Department updated successfully.",
+        type: "success",
+      });
     } catch (err: unknown) {
       const error = err as { status?: number; message?: string };
       setError(error?.message || "Failed to update department.");
+      setToast({
+        message: error?.message || "Failed to update department.",
+        type: "error",
+      });
     } finally {
       setSavingEdit(false);
     }
   };
 
-  // Manager modal handlers
   const openManagerModal = async () => {
     try {
       const users = await getUsers();
@@ -116,19 +135,25 @@ export default function DepartmentDetailPage() {
     if (!department) return;
     setUpdatingManager(true);
     try {
-      let updated: Department;
       if (selectedManagerId) {
-        updated = await assignDepartmentManager(department.id, {
+        await assignDepartmentManager(department.id, {
           managerId: selectedManagerId,
         });
       } else {
-        updated = await removeDepartmentManager(department.id);
+        await removeDepartmentManager(department.id);
       }
-      setDepartment(updated);
+      // Refetch department to ensure manager data is fresh
+      const refreshed = await getDepartment(department.id);
+      setDepartment(refreshed);
       setShowManagerModal(false);
+      setToast({ message: "Manager updated successfully.", type: "success" });
     } catch (err: unknown) {
       const error = err as { status?: number; message?: string };
       setError(error?.message || "Failed to update manager.");
+      setToast({
+        message: error?.message || "Failed to update manager.",
+        type: "error",
+      });
     } finally {
       setUpdatingManager(false);
     }
@@ -265,6 +290,19 @@ export default function DepartmentDetailPage() {
         </main>
       </div>
 
+      {/* Toast */}
+      {toast && (
+        <div
+          className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
+            toast.type === "success"
+              ? "bg-green-600 text-white"
+              : "bg-red-600 text-white"
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
       {/* Edit Modal */}
       {showEditModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -273,7 +311,6 @@ export default function DepartmentDetailPage() {
             <p className="mt-1 text-sm text-black/45">
               Update the department name.
             </p>
-
             <div className="mt-4">
               <label className="mb-2 block text-xs font-semibold">
                 Department Name
@@ -285,7 +322,6 @@ export default function DepartmentDetailPage() {
                 className="h-11 w-full rounded-lg border border-black/15 px-4 text-sm outline-none focus:border-oteems-red"
               />
             </div>
-
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setShowEditModal(false)}
@@ -313,7 +349,6 @@ export default function DepartmentDetailPage() {
             <p className="mt-1 text-sm text-black/45">
               Assign or remove the department manager.
             </p>
-
             <div className="mt-4">
               <label className="mb-2 block text-xs font-semibold">
                 Select Manager
@@ -331,7 +366,6 @@ export default function DepartmentDetailPage() {
                 ))}
               </select>
             </div>
-
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setShowManagerModal(false)}
