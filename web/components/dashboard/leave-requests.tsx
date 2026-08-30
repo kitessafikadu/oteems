@@ -50,13 +50,11 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
   const [error, setError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
 
-  // Reject modal state
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [rejecting, setRejecting] = useState(false);
 
-  // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingRequest, setEditingRequest] = useState<LeaveRequest | null>(
     null,
@@ -68,40 +66,52 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
     reason: "",
   });
   const [updating, setUpdating] = useState(false);
-
-  const currentUser = user;
-
-  const loadRequests = async () => {
-    if (!currentUser || !hasPermission(currentUser, "leave.view")) return;
-
-    try {
-      let data: LeaveRequest[];
-      if (currentUser.role === "EMPLOYEE") {
-        data = await getMyLeaveRequests();
-      } else if (currentUser.role === "DEPARTMENT_MANAGER") {
-        data = await getDepartmentLeaveRequests();
-      } else {
-        data = await getLeaveRequests();
-      }
-
-      setRequests(data.slice(0, 5));
-      setError("");
-    } catch (err: unknown) {
-      const errObj = err as { status?: number; message?: string };
-      setError(errObj?.message || "Failed to load leave requests.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    if (!currentUser || !hasPermission(currentUser, "leave.view")) return;
-    loadRequests();
-  }, [currentUser]);
+    if (!user || !hasPermission(user, "leave.view")) return;
 
-  if (!currentUser || !hasPermission(currentUser, "leave.view")) {
+    let cancelled = false;
+
+    async function fetchRequests() {
+      try {
+        let data: LeaveRequest[];
+        if (user!.role === "EMPLOYEE") {
+          data = await getMyLeaveRequests();
+        } else if (user!.role === "DEPARTMENT_MANAGER") {
+          data = await getDepartmentLeaveRequests();
+        } else {
+          data = await getLeaveRequests();
+        }
+
+        if (!cancelled) {
+          setRequests(data.slice(0, 5));
+          setError("");
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const errObj = err as { status?: number; message?: string };
+          setError(errObj?.message || "Failed to load leave requests.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchRequests();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, refreshKey]);
+
+  if (!user || !hasPermission(user, "leave.view")) {
     return null;
   }
+
+  const currentUser = user;
 
   const formatDateForInput = (dateStr?: string): string => {
     if (!dateStr) return "";
@@ -137,7 +147,7 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
           setActionMessage("Leave request approved.");
           break;
       }
-      await loadRequests();
+      setRefreshKey((k) => k + 1);
     } catch (err: unknown) {
       const errObj = err as { status?: number; message?: string };
       setError(errObj?.message || `Failed to ${action} leave request.`);
@@ -171,7 +181,7 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
       setShowEditModal(false);
       setEditingRequest(null);
       setActionMessage("Leave request updated successfully.");
-      await loadRequests();
+      setRefreshKey((k) => k + 1);
     } catch (err: unknown) {
       const errObj = err as { status?: number; message?: string };
       setError(errObj?.message || "Failed to update leave request.");
@@ -201,7 +211,7 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
       setRejectingId(null);
       setRejectReason("");
       setActionMessage("Leave request rejected.");
-      await loadRequests();
+      setRefreshKey((k) => k + 1);
     } catch (err: unknown) {
       const errObj = err as { status?: number; message?: string };
       setError(errObj?.message || "Failed to reject leave request.");
