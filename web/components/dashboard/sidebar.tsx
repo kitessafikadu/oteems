@@ -6,12 +6,13 @@ import { useState } from "react";
 import type { AuthUser } from "@/types/auth";
 import { removeAccessToken } from "@/lib/auth";
 import { logout } from "@/lib/api/auth";
+import { hasPermission, type Permission } from "@/lib/rbac";
 
 const navigation = [
   {
     label: "Overview",
     href: "/dashboard",
-    roles: ["ADMIN", "HR_USER", "DEPARTMENT_MANAGER", "EMPLOYEE"],
+    permission: "dashboard.view" as Permission,
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -29,7 +30,7 @@ const navigation = [
   {
     label: "Employees",
     href: "/employees",
-    roles: ["ADMIN", "HR_USER", "DEPARTMENT_MANAGER"],
+    permission: "employees.view" as Permission,
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -47,7 +48,7 @@ const navigation = [
   {
     label: "Departments",
     href: "/departments",
-    roles: ["ADMIN", "HR_USER"],
+    permission: "departments.view" as Permission,
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -64,7 +65,7 @@ const navigation = [
   {
     label: "Leave Requests",
     href: "/leave-requests",
-    roles: ["ADMIN", "HR_USER", "DEPARTMENT_MANAGER", "EMPLOYEE"],
+    permission: "leave.view" as Permission,
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -80,7 +81,7 @@ const navigation = [
   {
     label: "Reports",
     href: "/reports",
-    roles: ["ADMIN", "HR_USER", "DEPARTMENT_MANAGER"],
+    permission: "reports.view" as Permission,
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -100,7 +101,7 @@ const secondaryNavigation = [
   {
     label: "Settings",
     href: "/settings",
-    roles: ["ADMIN", "HR_USER", "DEPARTMENT_MANAGER", "EMPLOYEE"],
+    permission: "settings.view" as Permission,
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -115,20 +116,12 @@ const secondaryNavigation = [
   },
 ];
 
-// ============================================================
-// ROLE LABELS
-// ============================================================
-
 const roleLabels: Record<string, string> = {
   ADMIN: "Administrator",
   HR_USER: "HR User",
   DEPARTMENT_MANAGER: "Department Manager",
   EMPLOYEE: "Employee",
 };
-
-// ============================================================
-// SIDEBAR COMPONENT
-// ============================================================
 
 interface SidebarProps {
   user?: AuthUser | null;
@@ -143,12 +136,12 @@ export function Sidebar({ user }: SidebarProps) {
   const displayName = user?.employee?.fullName || user?.username || "User";
   const roleLabel = userRole ? roleLabels[userRole] || userRole : "";
 
-  const filteredNavigation = navigation.filter(
-    (item) => !item.roles || (userRole && item.roles.includes(userRole)),
+  const filteredNavigation = navigation.filter((item) =>
+    hasPermission(user, item.permission),
   );
 
-  const filteredSecondaryNavigation = secondaryNavigation.filter(
-    (item) => !item.roles || (userRole && item.roles.includes(userRole)),
+  const filteredSecondaryNavigation = secondaryNavigation.filter((item) =>
+    hasPermission(user, item.permission),
   );
 
   const initials = displayName

@@ -10,6 +10,7 @@ import type { AuthUser } from "@/types/auth";
 import { removeAccessToken } from "@/lib/auth";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
+import { hasPermission } from "@/lib/rbac";
 
 const statusBadgeClasses: Record<string, string> = {
   ACTIVE: "bg-green-50 text-green-700",
@@ -39,15 +40,12 @@ export default function EmployeesPage() {
     return matchesSearch && matchesStatus;
   });
 
+  // Load current user and check permission
   useEffect(() => {
     getMe()
       .then((currentUser) => {
         setUser(currentUser);
-        if (
-          currentUser.role !== "ADMIN" &&
-          currentUser.role !== "HR_USER" &&
-          currentUser.role !== "DEPARTMENT_MANAGER"
-        ) {
+        if (!hasPermission(currentUser, "employees.view")) {
           router.replace("/dashboard");
         }
       })
@@ -57,30 +55,51 @@ export default function EmployeesPage() {
       });
   }, [router]);
 
+  // Load employees when user is available
   useEffect(() => {
+    if (!user || !hasPermission(user, "employees.view")) return;
+
+    let cancelled = false;
+
     async function loadEmployees() {
-      setLoading(true);
-      setError("");
       try {
         const data = await getEmployees();
-        setAllEmployees(data);
-      } catch (err: unknown) {
-        console.error("Failed to load employees:", err);
-        const error = err as { status?: number; message?: string };
-        if (error?.status === 401 || error?.status === 403) {
-          removeAccessToken();
-          router.replace("/login");
-          return;
+        if (!cancelled) {
+          setAllEmployees(data);
+          setError("");
         }
-        setError(error?.message || "Failed to load employees.");
+      } catch (err: unknown) {
+        if (!cancelled) {
+          console.error("Failed to load employees:", err);
+          const error = err as { status?: number; message?: string };
+          if (error?.status === 401 || error?.status === 403) {
+            removeAccessToken();
+            router.replace("/login");
+            return;
+          }
+          setError(error?.message || "Failed to load employees.");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
-    if (user) {
-      loadEmployees();
-    }
+
+    loadEmployees();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user, router]);
+
+  if (!user || !hasPermission(user, "employees.view")) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f7f7f7]">
+        <div className="text-sm text-black/50">Loading…</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-[#f7f7f7]">
@@ -101,7 +120,7 @@ export default function EmployeesPage() {
                   Manage your organization&apos;s workforce.
                 </p>
               </div>
-              {(user?.role === "ADMIN" || user?.role === "HR_USER") && (
+              {hasPermission(user, "employees.add") && (
                 <Link
                   href="/employees/new"
                   className="inline-flex w-fit items-center gap-2 rounded-full bg-oteems-red px-5 py-3 text-xs font-semibold text-white transition-colors hover:bg-oteems-red-dark"
