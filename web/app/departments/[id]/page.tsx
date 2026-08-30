@@ -55,7 +55,7 @@ export default function DepartmentDetailPage() {
       getDepartment(id as string)
         .then((data) => {
           setDepartment(data);
-          setEditName(data.name);
+          setEditName(data.name || "");
           setSelectedManagerId(data.managerId || "");
         })
         .catch((err: unknown) => {
@@ -74,17 +74,17 @@ export default function DepartmentDetailPage() {
   // Edit modal handlers
   const openEditModal = () => {
     if (department) {
-      setEditName(department.name);
+      setEditName(department.name || "");
       setShowEditModal(true);
     }
   };
 
   const handleSaveEdit = async () => {
-    if (!department || !editName.trim()) return;
+    if (!department || !(editName ?? "").trim()) return;
     setSavingEdit(true);
     try {
       const updated = await updateDepartment(department.id, {
-        name: editName.trim(),
+        name: (editName ?? "").trim(),
       });
       setDepartment(updated);
       setShowEditModal(false);
@@ -295,7 +295,7 @@ export default function DepartmentDetailPage() {
               </button>
               <button
                 onClick={handleSaveEdit}
-                disabled={savingEdit || !editName.trim()}
+                disabled={savingEdit || !(editName ?? "").trim()}
                 className="rounded-lg bg-oteems-red px-4 py-2.5 text-xs font-semibold text-white hover:bg-oteems-red-dark disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {savingEdit ? "Saving..." : "Save Changes"}
