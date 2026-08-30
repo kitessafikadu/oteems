@@ -20,8 +20,6 @@ import { UpdateUserDto } from './dto/update-user.dto';
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // USER MANAGEMENT
-
   async createUser(createUserDto: CreateUserDto) {
     const {
       username,
@@ -36,42 +34,33 @@ export class AdminService {
       isActive = true,
     } = createUserDto;
 
-    // Check username
     const existingUser = await this.prisma.user.findUnique({
-      where: {
-        username,
-      },
+      where: { username },
     });
-
     if (existingUser) {
       throw new ConflictException('Username already exists');
     }
 
-    // Check employee email
     const existingEmployee = await this.prisma.employee.findUnique({
-      where: {
-        email,
-      },
+      where: { email },
     });
-
     if (existingEmployee) {
       throw new ConflictException('An employee with this email already exists');
     }
 
-    // Check department
     const department = await this.prisma.department.findUnique({
-      where: {
-        id: departmentId,
-      },
+      where: { id: departmentId },
     });
-
     if (!department) {
       throw new NotFoundException('Department not found');
     }
 
+    if (role === UserRole.DEPARTMENT_MANAGER && department.managerId) {
+      throw new ConflictException('This department already has a manager');
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Create employee and user atomically
     const result = await this.prisma.$transaction(async (tx) => {
       const employeeId = await this.generateEmployeeId(tx, role);
 
@@ -107,15 +96,18 @@ export class AdminService {
         },
       });
 
-      return {
-        employee,
-        user,
-      };
+      if (role === UserRole.DEPARTMENT_MANAGER) {
+        await tx.department.update({
+          where: { id: departmentId },
+          data: { managerId: employee.id },
+        });
+      }
+
+      return { employee, user };
     });
 
     return {
       message: 'User account created successfully',
-
       user: {
         id: result.user.id,
         username: result.user.username,
@@ -125,7 +117,6 @@ export class AdminService {
         createdAt: result.user.createdAt,
         updatedAt: result.user.updatedAt,
       },
-
       employee: {
         id: result.employee.id,
         employeeId: result.employee.employeeId,
@@ -252,8 +243,6 @@ export class AdminService {
       },
     });
   }
-
-  // DEPARTMENT MANAGEMENT
 
   async createDepartment(createDepartmentDto: CreateDepartmentDto) {
     const { name, managerId } = createDepartmentDto;
@@ -672,18 +661,12 @@ export class AdminService {
         },
       });
 
-      // Do not automatically downgrade the user's role here.
-      // The role should be explicitly managed by an administrator.
       return {
         message: 'Department manager removed successfully',
         department: updatedDepartment,
       };
     });
   }
-
-  // ============================================================
-  // EMPLOYEE ID GENERATION
-  // ============================================================
 
   private async generateEmployeeId(
     tx: Prisma.TransactionClient,
