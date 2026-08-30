@@ -12,6 +12,7 @@ import {
   getMyLeaveRequests,
   getDepartmentLeaveRequests,
   createLeaveRequest,
+  updateLeaveRequest,
   submitLeaveRequest,
   resubmitLeaveRequest,
   cancelLeaveRequest,
@@ -64,6 +65,16 @@ export default function LeavePage() {
   const [rejectReason, setRejectReason] = useState("");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<LeaveRequest | null>(null);
+  const [editForm, setEditForm] = useState<CreateLeaveRequestPayload>({
+    leaveType: "ANNUAL",
+    startDate: "",
+    endDate: "",
+    reason: "",
+  });
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     getMe()
@@ -177,6 +188,43 @@ export default function LeavePage() {
       setError(error?.message || "Failed to reject request.");
     } finally {
       setRejecting(false);
+    }
+  };
+
+  const formatDateForInput = (dateStr?: string): string => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    return d.toISOString().split("T")[0];
+  };
+
+  const handleOpenEdit = (req: LeaveRequest) => {
+    setEditingRequest(req);
+    setEditForm({
+      leaveType: req.leaveType,
+      startDate: formatDateForInput(req.startDate),
+      endDate: formatDateForInput(req.endDate),
+      reason: req.reason || "",
+    });
+    setShowEditModal(true);
+    setError("");
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRequest) return;
+    setUpdating(true);
+    setError("");
+    try {
+      await updateLeaveRequest(editingRequest.id, editForm);
+      setShowEditModal(false);
+      setEditingRequest(null);
+      fetchRequests();
+    } catch (err: unknown) {
+      const error = err as { status?: number; message?: string };
+      setError(error?.message || "Failed to update request.");
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -312,83 +360,125 @@ export default function LeavePage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            {req.status === "DRAFT" &&
-                              req.employeeId === user.employeeId && (
-                                <>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {/* Employee / Request Owner Actions */}
+                            {(user.role === "EMPLOYEE" ||
+                              req.employeeId === user.employeeId) && (
+                              <>
+                                {req.status === "DRAFT" && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleAction("submit", req.id)
+                                      }
+                                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                      Submit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEdit(req)}
+                                      className="text-xs font-semibold text-neutral-700 hover:text-black hover:underline"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleAction("cancel", req.id)
+                                      }
+                                      className="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </>
+                                )}
+
+                                {(req.status === "SUBMITTED" ||
+                                  req.status === "PENDING") && (
                                   <button
-                                    onClick={() =>
-                                      handleAction("submit", req.id)
-                                    }
-                                    className="text-xs font-medium text-blue-600 hover:underline"
-                                  >
-                                    Submit
-                                  </button>
-                                  <button
+                                    type="button"
                                     onClick={() =>
                                       handleAction("cancel", req.id)
                                     }
-                                    className="text-xs font-medium text-red-600 hover:underline"
+                                    className="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline"
                                   >
                                     Cancel
                                   </button>
-                                </>
-                              )}
-                            {req.status === "REJECTED" &&
-                              req.employeeId === user.employeeId && (
-                                <button
-                                  onClick={() =>
-                                    handleAction("resubmit", req.id)
-                                  }
-                                  className="text-xs font-medium text-blue-600 hover:underline"
-                                >
-                                  Resubmit
-                                </button>
-                              )}
-                            {(user.role === "ADMIN" ||
-                              user.role === "HR_USER") &&
-                              req.status === "SUBMITTED" && (
+                                )}
+
+                                {req.status === "REJECTED" && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEdit(req)}
+                                      className="text-xs font-semibold text-neutral-700 hover:text-black hover:underline"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleAction("resubmit", req.id)
+                                      }
+                                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                      Resubmit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleAction("cancel", req.id)
+                                      }
+                                      className="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </>
+                                )}
+                              </>
+                            )}
+
+                            {/* Manager / Admin Review Actions */}
+                            {user.role !== "EMPLOYEE" &&
+                              req.employeeId !== user.employeeId &&
+                              (req.status === "SUBMITTED" ||
+                                req.status === "PENDING") && (
                                 <>
-                                  <button
-                                    onClick={() =>
-                                      handleAction("approve", req.id)
-                                    }
-                                    className="text-xs font-medium text-green-600 hover:underline"
-                                  >
-                                    Approve
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      handleAction("reject", req.id)
-                                    }
-                                    className="text-xs font-medium text-red-600 hover:underline"
-                                  >
-                                    Reject
-                                  </button>
+                                  {(user.role === "ADMIN" ||
+                                    user.role === "HR_USER" ||
+                                    (user.role === "DEPARTMENT_MANAGER" &&
+                                      req.employee?.department?.name)) && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleAction("approve", req.id)
+                                        }
+                                        className="text-xs font-semibold text-green-600 hover:text-green-800 hover:underline"
+                                      >
+                                        Approve
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleAction("reject", req.id)
+                                        }
+                                        className="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline"
+                                      >
+                                        Reject
+                                      </button>
+                                    </>
+                                  )}
                                 </>
                               )}
-                            {user.role === "DEPARTMENT_MANAGER" &&
-                              req.status === "SUBMITTED" &&
-                              req.employee?.department?.name && (
-                                <>
-                                  <button
-                                    onClick={() =>
-                                      handleAction("approve", req.id)
-                                    }
-                                    className="text-xs font-medium text-green-600 hover:underline"
-                                  >
-                                    Approve
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      handleAction("reject", req.id)
-                                    }
-                                    className="text-xs font-medium text-red-600 hover:underline"
-                                  >
-                                    Reject
-                                  </button>
-                                </>
-                              )}
+
+                            {/* Empty indicator if no actions available */}
+                            {(req.status === "APPROVED" ||
+                              req.status === "CANCELLED") && (
+                              <span className="text-xs text-black/30">—</span>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -542,6 +632,115 @@ export default function LeavePage() {
                 {rejecting ? "Rejecting..." : "Reject"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && editingRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold">Edit Leave Request</h3>
+            <p className="mt-1 text-sm text-black/45">
+              Update leave request details ({editingRequest.requestNumber || "Draft"}).
+            </p>
+
+            <form onSubmit={handleEditSubmit} className="mt-4 space-y-4">
+              <div>
+                <label className="mb-2 block text-xs font-semibold">
+                  Leave Type
+                </label>
+                <select
+                  value={editForm.leaveType}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      leaveType: e.target.value as LeaveType,
+                    }))
+                  }
+                  className="h-11 w-full rounded-lg border border-black/15 px-4 text-sm outline-none focus:border-oteems-red"
+                >
+                  {leaveTypeOptions.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-2 block text-xs font-semibold">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.startDate}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        startDate: e.target.value,
+                      }))
+                    }
+                    required
+                    className="h-11 w-full rounded-lg border border-black/15 px-4 text-sm outline-none focus:border-oteems-red"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs font-semibold">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.endDate}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        endDate: e.target.value,
+                      }))
+                    }
+                    required
+                    className="h-11 w-full rounded-lg border border-black/15 px-4 text-sm outline-none focus:border-oteems-red"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold">
+                  Reason (optional)
+                </label>
+                <textarea
+                  value={editForm.reason}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      reason: e.target.value,
+                    }))
+                  }
+                  rows={3}
+                  className="w-full rounded-lg border border-black/15 px-4 py-2 text-sm outline-none focus:border-oteems-red"
+                  placeholder="Why are you taking leave?"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingRequest(null);
+                  }}
+                  className="rounded-lg border border-black/10 px-4 py-2.5 text-xs font-semibold text-black/60 hover:bg-black/[0.04]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updating}
+                  className="rounded-lg bg-oteems-red px-4 py-2.5 text-xs font-semibold text-white hover:bg-oteems-red-dark disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {updating ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
