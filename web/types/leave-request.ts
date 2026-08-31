@@ -38,6 +38,9 @@ export type LeaveRequest = {
       id: string;
       name: string;
     };
+    user?: {
+      role: string;
+    };
   };
 
   reviewer?: {

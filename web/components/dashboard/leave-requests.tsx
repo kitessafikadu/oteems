@@ -279,8 +279,8 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
             const isOwner =
               isEmployee || request.employeeId === user.employeeId;
 
-            // Additional check to hide manager/admin actions for own requests
             const isSelfRequest = request.employeeId === user.employeeId;
+            const requesterRole = request.employee?.user?.role;
 
             return (
               <div key={request.id} className="p-4 sm:p-5">
@@ -335,7 +335,6 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
                     </div>
                   </div>
 
-                  {/* Actions */}
                   <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
                     {/* Employee Actions */}
                     {isOwner && request.status === "DRAFT" && (
@@ -409,34 +408,44 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
                       </>
                     )}
 
-                    {/* Manager / Admin Actions – hidden for own requests */}
+                    {/* Manager / Admin Actions */}
                     {!isSelfRequest &&
                       !isEmployee &&
                       (canApprove || canReject) &&
                       (request.status === "SUBMITTED" ||
                         request.status === "PENDING") && (
                         <>
-                          {canApprove && (
-                            <button
-                              type="button"
-                              disabled={isActing}
-                              onClick={() =>
-                                handleAction("approve", request.id)
-                              }
-                              className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
-                            >
-                              {isActing ? "..." : "Approve"}
-                            </button>
-                          )}
-                          {canReject && (
-                            <button
-                              type="button"
-                              disabled={isActing}
-                              onClick={() => openRejectModal(request.id)}
-                              className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
-                            >
-                              Reject
-                            </button>
+                          {(user.role === "ADMIN" ||
+                            (user.role === "HR_USER" &&
+                              requesterRole !== "ADMIN" &&
+                              requesterRole !== "HR_USER") ||
+                            (user.role === "DEPARTMENT_MANAGER" &&
+                              request.employee?.department?.name &&
+                              requesterRole === "EMPLOYEE")) && (
+                            <>
+                              {canApprove && (
+                                <button
+                                  type="button"
+                                  disabled={isActing}
+                                  onClick={() =>
+                                    handleAction("approve", request.id)
+                                  }
+                                  className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
+                                >
+                                  {isActing ? "..." : "Approve"}
+                                </button>
+                              )}
+                              {canReject && (
+                                <button
+                                  type="button"
+                                  disabled={isActing}
+                                  onClick={() => openRejectModal(request.id)}
+                                  className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
+                                >
+                                  Reject
+                                </button>
+                              )}
+                            </>
                           )}
                         </>
                       )}

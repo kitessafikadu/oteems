@@ -462,12 +462,15 @@ export default function LeavePage() {
                                 req.status === "PENDING") && (
                                 <>
                                   {(user.role === "ADMIN" ||
-                                    user.role === "HR_USER" ||
+                                    (user.role === "HR_USER" &&
+                                      req.employee?.user?.role !== "ADMIN" &&
+                                      req.employee?.user?.role !== "HR_USER") ||
                                     (user.role === "DEPARTMENT_MANAGER" &&
-                                      req.employee?.department?.name)) && (
+                                      req.employee?.department?.name &&
+                                      req.employee?.user?.role ===
+                                        "EMPLOYEE")) && (
                                     <>
                                       <button
-                                        type="button"
                                         onClick={() =>
                                           handleAction("approve", req.id)
                                         }
@@ -476,7 +479,6 @@ export default function LeavePage() {
                                         Approve
                                       </button>
                                       <button
-                                        type="button"
                                         onClick={() =>
                                           handleAction("reject", req.id)
                                         }
