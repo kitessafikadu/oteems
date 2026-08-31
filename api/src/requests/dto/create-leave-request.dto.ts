@@ -37,7 +37,6 @@ export class CreateLeaveRequestDto {
     example: 'Annual family vacation.',
   })
   @IsString()
-  @IsNotEmpty()
   @MaxLength(500)
   reason!: string;
 }
