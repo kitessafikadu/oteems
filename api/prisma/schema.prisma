@@ -50,10 +50,6 @@ enum LeaveType {
   OTHER
 }
 
-// ============================================================
-// USER
-// ============================================================
-
 model User {
   id           String   @id @default(uuid())
   username     String   @unique
@@ -75,10 +71,6 @@ model User {
   @@index([isActive])
 }
 
-// ============================================================
-// DEPARTMENT
-// ============================================================
-
 model Department {
   id        String  @id @default(uuid())
   name      String  @unique
@@ -94,19 +86,11 @@ model Department {
   @@index([managerId])
 }
 
-// ============================================================
-// EMPLOYEE ID SEQUENCE
-// ============================================================
-
 model EmployeeIdSequence {
   role       UserRole @id
   nextNumber Int      @default(1001)
   updatedAt  DateTime @updatedAt
 }
-
-// ============================================================
-// EMPLOYEE
-// ============================================================
 
 model Employee {
   id         String           @id @default(uuid())
@@ -128,6 +112,8 @@ model Employee {
   leaveRequests LeaveRequest[]
   managedDepartment Department? @relation("DepartmentManager")
 
+  leaveBalances LeaveBalance[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -135,10 +121,6 @@ model Employee {
   @@index([status])
   @@index([fullName])
 }
-
-// ============================================================
-// LEAVE REQUEST
-// ============================================================
 
 model LeaveRequest {
   id            String @id @default(uuid())
@@ -175,10 +157,6 @@ model LeaveRequest {
   @@index([reviewedById])
 }
 
-// ============================================================
-// LEAVE REQUEST HISTORY
-// ============================================================
-
 model LeaveRequestHistory {
   id String @id @default(uuid())
 
@@ -205,4 +183,34 @@ model TokenBlacklist {
   createdAt DateTime @default(now())
 
   @@index([expiresAt])
+}
+
+model LeavePolicy {
+  id            String    @id @default(uuid())
+  leaveType     LeaveType @unique
+  baseDays      Int       @default(0)
+  seniorityBonus Json?
+  maxCarryOver  Int       @default(0)
+  requiresApproval Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LeaveBalance {
+  id          String   @id @default(uuid())
+  employeeId  String
+  leaveType   LeaveType
+  year        Int
+  totalDays   Int      @default(0)
+  usedDays    Int      @default(0)
+  carriedOver Int      @default(0)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, leaveType, year])
+  @@index([employeeId, year])
 }
