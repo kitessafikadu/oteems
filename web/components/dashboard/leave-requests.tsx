@@ -66,6 +66,7 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
     reason: "",
   });
   const [updating, setUpdating] = useState(false);
+  const [editError, setEditError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refresh = () => setRefreshKey((k) => k + 1);
@@ -167,14 +168,15 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
     setShowEditModal(true);
     setError("");
     setActionMessage("");
+    setEditError("");
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRequest) return;
     setUpdating(true);
+    setEditError("");
     setError("");
-    setActionMessage("");
 
     try {
       await updateLeaveRequest(editingRequest.id, editForm);
@@ -184,7 +186,7 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
       refresh();
     } catch (err: unknown) {
       const errObj = err as { status?: number; message?: string };
-      setError(errObj?.message || "Failed to update leave request.");
+      setEditError(errObj?.message || "Failed to update leave request.");
     } finally {
       setUpdating(false);
     }
@@ -544,6 +546,8 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
                   placeholder="Why are you taking leave?"
                 />
               </div>
+
+              {editError && <p className="text-xs text-red-600">{editError}</p>}
 
               <div className="flex justify-end gap-2">
                 <button
