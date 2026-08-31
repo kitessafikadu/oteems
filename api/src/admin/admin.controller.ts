@@ -32,7 +32,7 @@ import { UserRole } from '../../generated/prisma/client';
 @ApiBearerAuth('access-token')
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+@Roles(UserRole.ADMIN, UserRole.HR_USER)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 

@@ -386,6 +386,7 @@ export default function NewEmployeePage() {
                     <option value="DEPARTMENT_MANAGER">
                       Department Manager
                     </option>
+                    <option value="HR_USER">HR User</option>
                   </select>
                 </div>
               </div>
