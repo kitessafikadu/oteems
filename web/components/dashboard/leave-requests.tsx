@@ -68,6 +68,8 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
   const [updating, setUpdating] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  const refresh = () => setRefreshKey((k) => k + 1);
+
   useEffect(() => {
     if (!user || !hasPermission(user, "leave.view")) return;
 
@@ -111,8 +113,6 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
     return null;
   }
 
-  const currentUser = user;
-
   const formatDateForInput = (dateStr?: string): string => {
     if (!dateStr) return "";
     const d = new Date(dateStr);
@@ -147,7 +147,7 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
           setActionMessage("Leave request approved.");
           break;
       }
-      setRefreshKey((k) => k + 1);
+      refresh();
     } catch (err: unknown) {
       const errObj = err as { status?: number; message?: string };
       setError(errObj?.message || `Failed to ${action} leave request.`);
@@ -181,7 +181,7 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
       setShowEditModal(false);
       setEditingRequest(null);
       setActionMessage("Leave request updated successfully.");
-      setRefreshKey((k) => k + 1);
+      refresh();
     } catch (err: unknown) {
       const errObj = err as { status?: number; message?: string };
       setError(errObj?.message || "Failed to update leave request.");
@@ -211,7 +211,7 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
       setRejectingId(null);
       setRejectReason("");
       setActionMessage("Leave request rejected.");
-      setRefreshKey((k) => k + 1);
+      refresh();
     } catch (err: unknown) {
       const errObj = err as { status?: number; message?: string };
       setError(errObj?.message || "Failed to reject leave request.");
@@ -220,9 +220,9 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
     }
   };
 
-  const isEmployee = currentUser.role === "EMPLOYEE";
-  const canApprove = hasPermission(currentUser, "leave.approve");
-  const canReject = hasPermission(currentUser, "leave.reject");
+  const isEmployee = user.role === "EMPLOYEE";
+  const canApprove = hasPermission(user, "leave.approve");
+  const canReject = hasPermission(user, "leave.reject");
 
   return (
     <section className="rounded-xl border border-black/10 bg-white">
@@ -277,7 +277,10 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
           {requests.map((request) => {
             const isActing = actionLoadingId === request.id;
             const isOwner =
-              isEmployee || request.employeeId === currentUser.employeeId;
+              isEmployee || request.employeeId === user.employeeId;
+
+            // Additional check to hide manager/admin actions for own requests
+            const isSelfRequest = request.employeeId === user.employeeId;
 
             return (
               <div key={request.id} className="p-4 sm:p-5">
@@ -406,8 +409,9 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
                       </>
                     )}
 
-                    {/* Manager / Admin Actions */}
-                    {!isEmployee &&
+                    {/* Manager / Admin Actions – hidden for own requests */}
+                    {!isSelfRequest &&
+                      !isEmployee &&
                       (canApprove || canReject) &&
                       (request.status === "SUBMITTED" ||
                         request.status === "PENDING") && (
