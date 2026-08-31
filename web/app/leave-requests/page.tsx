@@ -126,7 +126,9 @@ export default function LeavePage() {
     ? requests.filter((req) => req.status === statusFilter)
     : requests;
 
-  const canCreate = user?.employeeId != null;
+  const isAdminOrHR = user?.role === "ADMIN" || user?.role === "HR_USER";
+  const hasEmployeeLink = user?.employeeId != null;
+  const canCreate = isAdminOrHR || hasEmployeeLink;
 
   const handleCreateRequest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -269,7 +271,13 @@ export default function LeavePage() {
               {canCreate && (
                 <button
                   onClick={() => setShowCreateModal(true)}
-                  className="inline-flex w-fit items-center gap-2 rounded-full bg-oteems-red px-5 py-3 text-xs font-semibold text-white transition-colors hover:bg-oteems-red-dark"
+                  disabled={!hasEmployeeLink && isAdminOrHR}
+                  title={
+                    !hasEmployeeLink && isAdminOrHR
+                      ? "Your account is not linked to an employee. Please contact an administrator."
+                      : ""
+                  }
+                  className="inline-flex w-fit items-center gap-2 rounded-full bg-oteems-red px-5 py-3 text-xs font-semibold text-white transition-colors hover:bg-oteems-red-dark disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <span className="text-base leading-none">+</span>
                   New Request
