@@ -6,6 +6,8 @@ import { getMe } from "@/lib/api/auth";
 import type { AuthUser } from "@/types/auth";
 import { getEmployeeReport } from "@/lib/api/reports";
 import type { EmployeeReport } from "@/types/report";
+import { getDepartments } from "@/lib/api/admin";
+import type { Department } from "@/types/department";
 import { removeAccessToken } from "@/lib/auth";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
@@ -20,11 +22,13 @@ export default function EmployeeReportPage() {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [report, setReport] = useState<EmployeeReport | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
 
-  // Load current user
+  // Load current user and departments
   useEffect(() => {
     getMe()
       .then((currentUser) => {
@@ -37,9 +41,13 @@ export default function EmployeeReportPage() {
         removeAccessToken();
         router.replace("/login");
       });
+
+    getDepartments()
+      .then((data: Department[]) => setDepartments(data))
+      .catch(() => setError("Failed to load departments."));
   }, [router]);
 
-  // Load employee report when user or filter changes
+  // Load employee report when user or filters change
   useEffect(() => {
     if (!user) return;
 
@@ -49,6 +57,7 @@ export default function EmployeeReportPage() {
       try {
         const data = await getEmployeeReport({
           status: statusFilter || undefined,
+          departmentId: departmentFilter || undefined,
         });
         if (!cancelled) {
           setReport(data);
@@ -76,7 +85,7 @@ export default function EmployeeReportPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, statusFilter, router]);
+  }, [user, statusFilter, departmentFilter, router]);
 
   if (!user) {
     return (
@@ -124,7 +133,7 @@ export default function EmployeeReportPage() {
               </div>
             </div>
 
-            <div className="mt-8 flex items-center gap-3">
+            <div className="mt-8 flex flex-wrap items-center gap-3">
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -134,6 +143,19 @@ export default function EmployeeReportPage() {
                 <option value="ACTIVE">Active</option>
                 <option value="INACTIVE">Inactive</option>
                 <option value="TERMINATED">Terminated</option>
+              </select>
+
+              <select
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+                className="h-11 rounded-lg border border-black/15 bg-white px-3 text-sm outline-none focus:border-oteems-red"
+              >
+                <option value="">All departments</option>
+                {departments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </option>
+                ))}
               </select>
             </div>
 
