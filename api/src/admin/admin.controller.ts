@@ -6,6 +6,7 @@ import {
   Delete,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -32,15 +33,15 @@ import { UserRole } from '../../generated/prisma/client';
 @ApiBearerAuth('access-token')
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+@Roles(UserRole.ADMIN, UserRole.HR_USER)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   // USER MANAGEMENT
 
   @Post('users')
-  createUser(@Body() createUserDto: CreateUserDto) {
-    return this.adminService.createUser(createUserDto);
+  createUser(@Req() req: any, @Body() createUserDto: CreateUserDto) {
+    return this.adminService.createUser(createUserDto, req.user.role);
   }
 
   @Get('users')

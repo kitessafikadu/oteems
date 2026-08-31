@@ -386,6 +386,12 @@ export default function NewEmployeePage() {
                     <option value="DEPARTMENT_MANAGER">
                       Department Manager
                     </option>
+                    {user?.role === "ADMIN" && (
+                      <>
+                        <option value="HR_USER">HR User</option>
+                        <option value="ADMIN">Admin</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>

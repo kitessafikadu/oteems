@@ -66,7 +66,10 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
     reason: "",
   });
   const [updating, setUpdating] = useState(false);
+  const [editError, setEditError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const refresh = () => setRefreshKey((k) => k + 1);
 
   useEffect(() => {
     if (!user || !hasPermission(user, "leave.view")) return;
@@ -111,8 +114,6 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
     return null;
   }
 
-  const currentUser = user;
-
   const formatDateForInput = (dateStr?: string): string => {
     if (!dateStr) return "";
     const d = new Date(dateStr);
@@ -147,7 +148,7 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
           setActionMessage("Leave request approved.");
           break;
       }
-      setRefreshKey((k) => k + 1);
+      refresh();
     } catch (err: unknown) {
       const errObj = err as { status?: number; message?: string };
       setError(errObj?.message || `Failed to ${action} leave request.`);
@@ -167,24 +168,25 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
     setShowEditModal(true);
     setError("");
     setActionMessage("");
+    setEditError("");
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRequest) return;
     setUpdating(true);
+    setEditError("");
     setError("");
-    setActionMessage("");
 
     try {
       await updateLeaveRequest(editingRequest.id, editForm);
       setShowEditModal(false);
       setEditingRequest(null);
       setActionMessage("Leave request updated successfully.");
-      setRefreshKey((k) => k + 1);
+      refresh();
     } catch (err: unknown) {
       const errObj = err as { status?: number; message?: string };
-      setError(errObj?.message || "Failed to update leave request.");
+      setEditError(errObj?.message || "Failed to update leave request.");
     } finally {
       setUpdating(false);
     }
@@ -211,7 +213,7 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
       setRejectingId(null);
       setRejectReason("");
       setActionMessage("Leave request rejected.");
-      setRefreshKey((k) => k + 1);
+      refresh();
     } catch (err: unknown) {
       const errObj = err as { status?: number; message?: string };
       setError(errObj?.message || "Failed to reject leave request.");
@@ -220,9 +222,9 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
     }
   };
 
-  const isEmployee = currentUser.role === "EMPLOYEE";
-  const canApprove = hasPermission(currentUser, "leave.approve");
-  const canReject = hasPermission(currentUser, "leave.reject");
+  const isEmployee = user.role === "EMPLOYEE";
+  const canApprove = hasPermission(user, "leave.approve");
+  const canReject = hasPermission(user, "leave.reject");
 
   return (
     <section className="rounded-xl border border-black/10 bg-white">
@@ -277,7 +279,10 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
           {requests.map((request) => {
             const isActing = actionLoadingId === request.id;
             const isOwner =
-              isEmployee || request.employeeId === currentUser.employeeId;
+              isEmployee || request.employeeId === user.employeeId;
+
+            const isSelfRequest = request.employeeId === user.employeeId;
+            const requesterRole = request.employee?.user?.role;
 
             return (
               <div key={request.id} className="p-4 sm:p-5">
@@ -332,7 +337,6 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
                     </div>
                   </div>
 
-                  {/* Actions */}
                   <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
                     {/* Employee Actions */}
                     {isOwner && request.status === "DRAFT" && (
@@ -407,32 +411,43 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
                     )}
 
                     {/* Manager / Admin Actions */}
-                    {!isEmployee &&
+                    {!isSelfRequest &&
+                      !isEmployee &&
                       (canApprove || canReject) &&
                       (request.status === "SUBMITTED" ||
                         request.status === "PENDING") && (
                         <>
-                          {canApprove && (
-                            <button
-                              type="button"
-                              disabled={isActing}
-                              onClick={() =>
-                                handleAction("approve", request.id)
-                              }
-                              className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
-                            >
-                              {isActing ? "..." : "Approve"}
-                            </button>
-                          )}
-                          {canReject && (
-                            <button
-                              type="button"
-                              disabled={isActing}
-                              onClick={() => openRejectModal(request.id)}
-                              className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
-                            >
-                              Reject
-                            </button>
+                          {(user.role === "ADMIN" ||
+                            (user.role === "HR_USER" &&
+                              requesterRole !== "ADMIN" &&
+                              requesterRole !== "HR_USER") ||
+                            (user.role === "DEPARTMENT_MANAGER" &&
+                              request.employee?.department?.name &&
+                              requesterRole === "EMPLOYEE")) && (
+                            <>
+                              {canApprove && (
+                                <button
+                                  type="button"
+                                  disabled={isActing}
+                                  onClick={() =>
+                                    handleAction("approve", request.id)
+                                  }
+                                  className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
+                                >
+                                  {isActing ? "..." : "Approve"}
+                                </button>
+                              )}
+                              {canReject && (
+                                <button
+                                  type="button"
+                                  disabled={isActing}
+                                  onClick={() => openRejectModal(request.id)}
+                                  className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
+                                >
+                                  Reject
+                                </button>
+                              )}
+                            </>
                           )}
                         </>
                       )}
@@ -531,6 +546,8 @@ export function LeaveRequests({ user }: LeaveRequestsProps) {
                   placeholder="Why are you taking leave?"
                 />
               </div>
+
+              {editError && <p className="text-xs text-red-600">{editError}</p>}
 
               <div className="flex justify-end gap-2">
                 <button

@@ -60,6 +60,7 @@ export default function LeavePage() {
     reason: "",
   });
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
 
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -67,7 +68,9 @@ export default function LeavePage() {
   const [rejecting, setRejecting] = useState(false);
 
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editingRequest, setEditingRequest] = useState<LeaveRequest | null>(null);
+  const [editingRequest, setEditingRequest] = useState<LeaveRequest | null>(
+    null,
+  );
   const [editForm, setEditForm] = useState<CreateLeaveRequestPayload>({
     leaveType: "ANNUAL",
     startDate: "",
@@ -75,6 +78,7 @@ export default function LeavePage() {
     reason: "",
   });
   const [updating, setUpdating] = useState(false);
+  const [editError, setEditError] = useState("");
 
   useEffect(() => {
     getMe()
@@ -122,11 +126,14 @@ export default function LeavePage() {
     ? requests.filter((req) => req.status === statusFilter)
     : requests;
 
-  const canCreate = user?.employeeId != null;
+  const isAdminOrHR = user?.role === "ADMIN" || user?.role === "HR_USER";
+  const hasEmployeeLink = user?.employeeId != null;
+  const canCreate = isAdminOrHR || hasEmployeeLink;
 
   const handleCreateRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
+    setCreateError("");
     setError("");
     try {
       await createLeaveRequest(newRequest);
@@ -140,7 +147,7 @@ export default function LeavePage() {
       fetchRequests();
     } catch (err: unknown) {
       const error = err as { status?: number; message?: string };
-      setError(error?.message || "Failed to create request.");
+      setCreateError(error?.message || "Failed to create request.");
     } finally {
       setCreating(false);
     }
@@ -207,6 +214,7 @@ export default function LeavePage() {
       reason: req.reason || "",
     });
     setShowEditModal(true);
+    setEditError("");
     setError("");
   };
 
@@ -214,6 +222,7 @@ export default function LeavePage() {
     e.preventDefault();
     if (!editingRequest) return;
     setUpdating(true);
+    setEditError("");
     setError("");
     try {
       await updateLeaveRequest(editingRequest.id, editForm);
@@ -222,7 +231,7 @@ export default function LeavePage() {
       fetchRequests();
     } catch (err: unknown) {
       const error = err as { status?: number; message?: string };
-      setError(error?.message || "Failed to update request.");
+      setEditError(error?.message || "Failed to update request.");
     } finally {
       setUpdating(false);
     }
@@ -262,7 +271,13 @@ export default function LeavePage() {
               {canCreate && (
                 <button
                   onClick={() => setShowCreateModal(true)}
-                  className="inline-flex w-fit items-center gap-2 rounded-full bg-oteems-red px-5 py-3 text-xs font-semibold text-white transition-colors hover:bg-oteems-red-dark"
+                  disabled={!hasEmployeeLink && isAdminOrHR}
+                  title={
+                    !hasEmployeeLink && isAdminOrHR
+                      ? "Your account is not linked to an employee. Please contact an administrator."
+                      : ""
+                  }
+                  className="inline-flex w-fit items-center gap-2 rounded-full bg-oteems-red px-5 py-3 text-xs font-semibold text-white transition-colors hover:bg-oteems-red-dark disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <span className="text-base leading-none">+</span>
                   New Request
@@ -447,12 +462,15 @@ export default function LeavePage() {
                                 req.status === "PENDING") && (
                                 <>
                                   {(user.role === "ADMIN" ||
-                                    user.role === "HR_USER" ||
+                                    (user.role === "HR_USER" &&
+                                      req.employee?.user?.role !== "ADMIN" &&
+                                      req.employee?.user?.role !== "HR_USER") ||
                                     (user.role === "DEPARTMENT_MANAGER" &&
-                                      req.employee?.department?.name)) && (
+                                      req.employee?.department?.name &&
+                                      req.employee?.user?.role ===
+                                        "EMPLOYEE")) && (
                                     <>
                                       <button
-                                        type="button"
                                         onClick={() =>
                                           handleAction("approve", req.id)
                                         }
@@ -461,7 +479,6 @@ export default function LeavePage() {
                                         Approve
                                       </button>
                                       <button
-                                        type="button"
                                         onClick={() =>
                                           handleAction("reject", req.id)
                                         }
@@ -576,6 +593,10 @@ export default function LeavePage() {
                 />
               </div>
 
+              {createError && (
+                <p className="text-xs text-red-600">{createError}</p>
+              )}
+
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
@@ -642,7 +663,8 @@ export default function LeavePage() {
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
             <h3 className="text-lg font-bold">Edit Leave Request</h3>
             <p className="mt-1 text-sm text-black/45">
-              Update leave request details ({editingRequest.requestNumber || "Draft"}).
+              Update leave request details (
+              {editingRequest.requestNumber || "Draft"}).
             </p>
 
             <form onSubmit={handleEditSubmit} className="mt-4 space-y-4">
@@ -720,6 +742,8 @@ export default function LeavePage() {
                   placeholder="Why are you taking leave?"
                 />
               </div>
+
+              {editError && <p className="text-xs text-red-600">{editError}</p>}
 
               <div className="flex justify-end gap-3">
                 <button
