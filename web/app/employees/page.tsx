@@ -7,6 +7,8 @@ import { getEmployees } from "@/lib/api/employees";
 import type { Employee } from "@/types/employee";
 import { getMe } from "@/lib/api/auth";
 import type { AuthUser } from "@/types/auth";
+import { getDepartments } from "@/lib/api/admin";
+import type { Department } from "@/types/department";
 import { removeAccessToken } from "@/lib/auth";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
@@ -22,10 +24,12 @@ export default function EmployeesPage() {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
 
   // Filter employees client-side
   const filteredEmployees = allEmployees.filter((employee) => {
@@ -36,11 +40,15 @@ export default function EmployeesPage() {
       employee.employeeId.toLowerCase().includes(search.toLowerCase());
 
     const matchesStatus = !statusFilter || employee.status === statusFilter;
+    const matchesDepartment =
+      !departmentFilter ||
+      employee.departmentId === departmentFilter ||
+      employee.department?.id === departmentFilter;
 
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus && matchesDepartment;
   });
 
-  // Load current user and check permission
+  // Load current user and departments
   useEffect(() => {
     getMe()
       .then((currentUser) => {
@@ -53,6 +61,10 @@ export default function EmployeesPage() {
         removeAccessToken();
         router.replace("/login");
       });
+
+    getDepartments()
+      .then((data: Department[]) => setDepartments(data))
+      .catch(() => setError("Failed to load departments."));
   }, [router]);
 
   // Load employees when user is available
@@ -131,7 +143,7 @@ export default function EmployeesPage() {
               )}
             </div>
 
-            {/* Search and filter (client-side) */}
+            {/* Search and filters */}
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex w-full gap-2 sm:max-w-md">
                 <input
@@ -143,16 +155,31 @@ export default function EmployeesPage() {
                 />
               </div>
 
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-11 rounded-lg border border-black/15 bg-white px-3 text-sm outline-none focus:border-oteems-red"
-              >
-                <option value="">All statuses</option>
-                <option value="ACTIVE">Active</option>
-                <option value="INACTIVE">Inactive</option>
-                <option value="TERMINATED">Terminated</option>
-              </select>
+              <div className="flex flex-wrap gap-3">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-11 rounded-lg border border-black/15 bg-white px-3 text-sm outline-none focus:border-oteems-red"
+                >
+                  <option value="">All statuses</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                  <option value="TERMINATED">Terminated</option>
+                </select>
+
+                <select
+                  value={departmentFilter}
+                  onChange={(e) => setDepartmentFilter(e.target.value)}
+                  className="h-11 rounded-lg border border-black/15 bg-white px-3 text-sm outline-none focus:border-oteems-red"
+                >
+                  <option value="">All departments</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* Error */}
