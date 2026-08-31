@@ -209,7 +209,7 @@ Do not commit environment files containing secrets.
 ### Clone
 
 ```bash
-git clone [<repository-url>](https://github.com/kitessafikadu/oteems.git)
+git clone https://github.com/kitessafikadu/oteems.git
 cd oteems
 ```
 
