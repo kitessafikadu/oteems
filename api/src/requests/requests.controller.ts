@@ -15,7 +15,6 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-
 import { Request } from 'express';
 
 import { RequestsService } from './requests.service';
@@ -40,10 +39,6 @@ interface AuthenticatedRequest extends Request {
 export class RequestsController {
   constructor(private readonly requestsService: RequestsService) {}
 
-  // ============================================================
-  // EMPLOYEE
-  // ============================================================
-
   @Post()
   @ApiOperation({
     summary: 'Create and submit a leave request',
@@ -54,10 +49,7 @@ export class RequestsController {
     status: 201,
     description: 'Leave request created and submitted successfully.',
   })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid dates or request data.',
-  })
+  @ApiResponse({ status: 400, description: 'Invalid dates or request data.' })
   @ApiResponse({
     status: 409,
     description: 'The employee already has an overlapping leave request.',
@@ -176,10 +168,6 @@ export class RequestsController {
     return this.requestsService.cancelRequest(this.getUserId(req), requestId);
   }
 
-  // ============================================================
-  // DEPARTMENT MANAGER
-  // ============================================================
-
   @Get('department')
   @ApiOperation({
     summary: 'View department leave requests',
@@ -243,10 +231,6 @@ export class RequestsController {
     );
   }
 
-  // ============================================================
-  // ADMIN + HR
-  // ============================================================
-
   @Get()
   @ApiOperation({
     summary: 'View all leave requests',
@@ -260,10 +244,6 @@ export class RequestsController {
   getAllRequests(@Req() req: AuthenticatedRequest) {
     return this.requestsService.getAllRequests(this.getUserId(req));
   }
-
-  // ============================================================
-  // SHARED
-  // ============================================================
 
   @Get(':id')
   @ApiOperation({
