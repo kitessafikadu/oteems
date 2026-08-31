@@ -35,13 +35,6 @@ export class RequestsService {
       );
     }
 
-    if (
-      user.role !== UserRole.EMPLOYEE &&
-      user.role !== UserRole.DEPARTMENT_MANAGER
-    ) {
-      throw new ForbiddenException('Only employees can create leave requests');
-    }
-
     if (user.employee.status !== EmploymentStatus.ACTIVE) {
       throw new ForbiddenException(
         'Only active employees can create leave requests',
