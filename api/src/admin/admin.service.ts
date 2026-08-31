@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,7 +21,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createUser(createUserDto: CreateUserDto) {
+  async createUser(createUserDto: CreateUserDto, requestingRole: UserRole) {
     const {
       username,
       password,
@@ -33,6 +34,15 @@ export class AdminService {
       departmentId,
       isActive = true,
     } = createUserDto;
+
+    if (
+      requestingRole === UserRole.HR_USER &&
+      (role === UserRole.ADMIN || role === UserRole.HR_USER)
+    ) {
+      throw new ForbiddenException(
+        'HR users cannot create Admin or HR accounts',
+      );
+    }
 
     const existingUser = await this.prisma.user.findUnique({
       where: { username },
@@ -141,7 +151,6 @@ export class AdminService {
         isActive: true,
         createdAt: true,
         updatedAt: true,
-
         employee: {
           select: {
             employeeId: true,
@@ -155,19 +164,13 @@ export class AdminService {
           },
         },
       },
-
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
   async findUserById(id: string) {
     const user = await this.prisma.user.findUnique({
-      where: {
-        id,
-      },
-
+      where: { id },
       select: {
         id: true,
         username: true,
@@ -176,7 +179,6 @@ export class AdminService {
         isActive: true,
         createdAt: true,
         updatedAt: true,
-
         employee: true,
       },
     });
@@ -193,9 +195,7 @@ export class AdminService {
 
     if (updateUserDto.employeeId) {
       const employee = await this.prisma.employee.findUnique({
-        where: {
-          id: updateUserDto.employeeId,
-        },
+        where: { id: updateUserDto.employeeId },
       });
 
       if (!employee) {
@@ -204,12 +204,8 @@ export class AdminService {
     }
 
     return this.prisma.user.update({
-      where: {
-        id,
-      },
-
+      where: { id },
       data: updateUserDto,
-
       select: {
         id: true,
         username: true,
@@ -226,14 +222,8 @@ export class AdminService {
     await this.findUserById(id);
 
     return this.prisma.user.update({
-      where: {
-        id,
-      },
-
-      data: {
-        isActive: false,
-      },
-
+      where: { id },
+      data: { isActive: false },
       select: {
         id: true,
         username: true,
@@ -248,9 +238,7 @@ export class AdminService {
     const { name, managerId } = createDepartmentDto;
 
     const existingDepartment = await this.prisma.department.findUnique({
-      where: {
-        name,
-      },
+      where: { name },
     });
 
     if (existingDepartment) {
@@ -259,9 +247,7 @@ export class AdminService {
 
     if (managerId) {
       const manager = await this.prisma.employee.findUnique({
-        where: {
-          id: managerId,
-        },
+        where: { id: managerId },
       });
 
       if (!manager) {
@@ -276,9 +262,7 @@ export class AdminService {
 
       const existingManagedDepartment = await this.prisma.department.findUnique(
         {
-          where: {
-            managerId,
-          },
+          where: { managerId },
         },
       );
 
@@ -294,14 +278,12 @@ export class AdminService {
         name,
         managerId: managerId ?? null,
       },
-
       select: {
         id: true,
         name: true,
         managerId: true,
         createdAt: true,
         updatedAt: true,
-
         manager: {
           select: {
             id: true,
@@ -323,7 +305,6 @@ export class AdminService {
         managerId: true,
         createdAt: true,
         updatedAt: true,
-
         manager: {
           select: {
             id: true,
@@ -333,33 +314,23 @@ export class AdminService {
             position: true,
           },
         },
-
         _count: {
-          select: {
-            employees: true,
-          },
+          select: { employees: true },
         },
       },
-
-      orderBy: {
-        name: 'asc',
-      },
+      orderBy: { name: 'asc' },
     });
   }
 
   async findDepartmentById(id: string) {
     const department = await this.prisma.department.findUnique({
-      where: {
-        id,
-      },
-
+      where: { id },
       select: {
         id: true,
         name: true,
         managerId: true,
         createdAt: true,
         updatedAt: true,
-
         manager: {
           select: {
             id: true,
@@ -369,7 +340,6 @@ export class AdminService {
             position: true,
           },
         },
-
         employees: {
           select: {
             id: true,
@@ -381,10 +351,7 @@ export class AdminService {
             hireDate: true,
             status: true,
           },
-
-          orderBy: {
-            fullName: 'asc',
-          },
+          orderBy: { fullName: 'asc' },
         },
       },
     });
@@ -398,9 +365,7 @@ export class AdminService {
 
   async updateDepartment(id: string, updateDepartmentDto: UpdateDepartmentDto) {
     const department = await this.prisma.department.findUnique({
-      where: {
-        id,
-      },
+      where: { id },
     });
 
     if (!department) {
@@ -411,9 +376,7 @@ export class AdminService {
       const existingDepartment = await this.prisma.department.findFirst({
         where: {
           name: updateDepartmentDto.name,
-          NOT: {
-            id,
-          },
+          NOT: { id },
         },
       });
 
@@ -423,23 +386,16 @@ export class AdminService {
     }
 
     return this.prisma.department.update({
-      where: {
-        id,
-      },
-
+      where: { id },
       data: {
-        ...(updateDepartmentDto.name && {
-          name: updateDepartmentDto.name,
-        }),
+        ...(updateDepartmentDto.name && { name: updateDepartmentDto.name }),
       },
-
       select: {
         id: true,
         name: true,
         managerId: true,
         createdAt: true,
         updatedAt: true,
-
         manager: {
           select: {
             id: true,
@@ -449,11 +405,8 @@ export class AdminService {
             position: true,
           },
         },
-
         _count: {
-          select: {
-            employees: true,
-          },
+          select: { employees: true },
         },
       },
     });
@@ -466,9 +419,7 @@ export class AdminService {
     const { managerId } = assignDepartmentManagerDto;
 
     const department = await this.prisma.department.findUnique({
-      where: {
-        id: departmentId,
-      },
+      where: { id: departmentId },
     });
 
     if (!department) {
@@ -476,9 +427,7 @@ export class AdminService {
     }
 
     const manager = await this.prisma.employee.findUnique({
-      where: {
-        id: managerId,
-      },
+      where: { id: managerId },
       select: {
         id: true,
         employeeId: true,
@@ -520,9 +469,7 @@ export class AdminService {
     const existingManagedDepartment = await this.prisma.department.findFirst({
       where: {
         managerId,
-        NOT: {
-          id: departmentId,
-        },
+        NOT: { id: departmentId },
       },
     });
 
@@ -533,38 +480,21 @@ export class AdminService {
     }
 
     const updatedDepartment = await this.prisma.$transaction(async (tx) => {
-      // Generate a new MGR employee ID
       const sequence = await tx.employeeIdSequence.update({
-        where: {
-          role: UserRole.DEPARTMENT_MANAGER,
-        },
-        data: {
-          nextNumber: {
-            increment: 1,
-          },
-        },
+        where: { role: UserRole.DEPARTMENT_MANAGER },
+        data: { nextNumber: { increment: 1 } },
       });
 
       const managerEmployeeId = `MGR-${sequence.nextNumber - 1}`;
 
-      // Update employee's human-readable employee ID
       await tx.employee.update({
-        where: {
-          id: manager.id,
-        },
-        data: {
-          employeeId: managerEmployeeId,
-        },
+        where: { id: manager.id },
+        data: { employeeId: managerEmployeeId },
       });
 
-      // Assign employee as department manager
       const updated = await tx.department.update({
-        where: {
-          id: departmentId,
-        },
-        data: {
-          managerId: manager.id,
-        },
+        where: { id: departmentId },
+        data: { managerId: manager.id },
         select: {
           id: true,
           name: true,
@@ -592,14 +522,9 @@ export class AdminService {
         },
       });
 
-      // Update account role
       await tx.user.update({
-        where: {
-          id: manager.user!.id,
-        },
-        data: {
-          role: UserRole.DEPARTMENT_MANAGER,
-        },
+        where: { id: manager.user!.id },
+        data: { role: UserRole.DEPARTMENT_MANAGER },
       });
 
       return updated;
@@ -613,9 +538,7 @@ export class AdminService {
 
   async removeDepartmentManager(departmentId: string) {
     const department = await this.prisma.department.findUnique({
-      where: {
-        id: departmentId,
-      },
+      where: { id: departmentId },
       select: {
         id: true,
         name: true,
@@ -646,12 +569,8 @@ export class AdminService {
 
     return this.prisma.$transaction(async (tx) => {
       const updatedDepartment = await tx.department.update({
-        where: {
-          id: departmentId,
-        },
-        data: {
-          managerId: null,
-        },
+        where: { id: departmentId },
+        data: { managerId: null },
         select: {
           id: true,
           name: true,
@@ -673,15 +592,8 @@ export class AdminService {
     role: UserRole,
   ): Promise<string> {
     const sequence = await tx.employeeIdSequence.update({
-      where: {
-        role,
-      },
-
-      data: {
-        nextNumber: {
-          increment: 1,
-        },
-      },
+      where: { role },
+      data: { nextNumber: { increment: 1 } },
     });
 
     const number = sequence.nextNumber - 1;
@@ -694,13 +606,10 @@ export class AdminService {
     switch (role) {
       case UserRole.ADMIN:
         return 'ADM';
-
       case UserRole.HR_USER:
         return 'HR';
-
       case UserRole.DEPARTMENT_MANAGER:
         return 'MGR';
-
       case UserRole.EMPLOYEE:
       default:
         return 'EMP';
